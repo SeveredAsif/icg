@@ -8,9 +8,11 @@ options {
 import java.io.BufferedWriter;
 import java.io.IOException;
 import SymbolTable.SymbolInfo;
+
 }
 
 @members {
+    int stack_offset = 0;
     // helper to write into parserLogFile
     void writeIntoParserLogFile(String message) {
         try {
@@ -21,6 +23,16 @@ import SymbolTable.SymbolInfo;
             System.err.println("Parser log error: " + e.getMessage());
         }
     }
+    void writeIntoAsmFile(String message) {
+        try {
+            Main.asmWriter.write(message);
+            Main.asmWriter.newLine();
+            Main.asmWriter.flush();
+        } catch (IOException e) {
+            System.err.println("Parser log error: " + e.getMessage());
+        }
+    }
+
 
     // helper to write into Main.errorFile
     void writeIntoErrorFile(String message) {
@@ -122,8 +134,16 @@ import SymbolTable.SymbolInfo;
 
 }
 
-start
-    : p=program
+ start 
+    : 
+    { 
+        writeIntoAsmFile(".MODEL SMALL\n.STACK 1000H");
+        writeIntoAsmFile(".Data");
+        writeIntoAsmFile("\t CR EQU 0DH");
+        writeIntoAsmFile("\t LF EQU 0AH");
+        writeIntoAsmFile("\t number DB \"00000$\"");
+    }
+    p=program
       {
     writeIntoParserLogFile(
         "Line "+  $p.stop.getLine() + ": start : program\n"
@@ -137,7 +157,7 @@ start
             "Total number of errors: "
             + Main.syntaxErrorCount
         );
-    
+        writeIntoAsmFile("end main");
       }
     ;
 
@@ -379,6 +399,15 @@ func_definition
 
                 Main.st.insert(sym);
 
+                if($ID.getText().equalsIgnoreCase("main"))
+                { 
+                    writeIntoAsmFile(".CODE\nmain PROC");
+                    writeIntoAsmFile("\tMOV AX,@DATA");
+                    writeIntoAsmFile("\tMOV DS,AX");
+                    writeIntoAsmFile("\tPUSH BP");
+                    writeIntoAsmFile("\tMOV BP,SP");
+                }
+
         }
     } 
     LPAREN RPAREN c=compound_statement
@@ -388,6 +417,72 @@ func_definition
             + $c.stop.getLine() + ": func_definition : type_specifier ID LPAREN RPAREN compound_statement\n\n" +$t.text + " "+ $ID.getText() + "()"+ $c.name_line + "\n"
         );          
         $name_line = $t.text + " "+ $ID.getText() + "()"+ $c.name_line;
+        
+        
+        writeIntoAsmFile("\tMOV AX,4CH");
+        writeIntoAsmFile("\tINT 21H");
+
+        writeIntoAsmFile($ID.getText()+" ENDP");	
+	
+        if($ID.getText().equalsIgnoreCase("main"))
+        { 
+                String new_line_and_print_func = """
+                                                new_line proc
+                                                    push ax
+                                                    push dx
+                                                    mov ah,2
+                                                    mov dl,cr
+                                                    int 21h
+                                                    mov ah,2
+                                                    mov dl,lf
+                                                    int 21h
+                                                    pop dx
+                                                    pop ax
+                                                    ret
+                                                new_line endp
+                                                print_output proc  ;print what is in ax
+                                                    push ax
+                                                    push bx
+                                                    push cx
+                                                    push dx
+                                                    push si
+                                                    lea si,number
+                                                    mov bx,10
+                                                    add si,4
+                                                    cmp ax,0
+                                                    jnge negate
+                                                print:
+                                                    xor dx,dx
+                                                    div bx
+                                                    mov [si],dl
+                                                    add [si],'0'
+                                                    dec si
+                                                    cmp ax,0
+                                                    jne print
+                                                    inc si
+                                                    lea dx,si
+                                                    mov ah,9
+                                                    int 21h
+                                                    pop si
+                                                    pop dx
+                                                    pop cx
+                                                    pop bx
+                                                    pop ax
+                                                    ret
+                                                negate:
+                                                    push ax
+                                                    mov ah,2
+                                                    mov dl,'-'
+                                                    int 21h
+                                                    pop ax
+                                                    neg ax
+                                                    jmp print
+                                                print_output endp
+                                                """;
+
+            writeIntoAsmFile(new_line_and_print_func);
+        }
+        
     }
     ;
 
@@ -548,7 +643,27 @@ var_declaration
 
 
         $name_line = $t.text +  " " + $dl.name_line+";";   
-        Main.addToSymbolTable($t.text);        
+        //get the count from main's pending list 
+        int declaration_list_size = Main.pendingInsertions.size();
+        //writeIntoAsmFile("The size of parameters is " + declaration_list_size);
+        if(Main.st.getCurrentScope().getParent()==null)
+        { 
+            for(SymbolInfo item: Main.pendingInsertions)
+            { 
+                writeIntoAsmFile("\t" + item.getName() + " DW 1 DUP(0000H)" );
+            }
+        }
+        else
+        {
+            
+            //stack_offset += 2;
+            for(SymbolInfo item: Main.pendingInsertions)
+            { 
+                writeIntoAsmFile("\tSUB SP,2");
+            }
+        }
+        Main.addToSymbolTable($t.text,stack_offset);   
+        writeIntoParserLogFile("symbol table scope id : " + Main.st.getCurrentScope().getId()+" ,added" + $dl.name_line);
       }
     | t=type_specifier de=declaration_list_err sm=SEMICOLON
       {
@@ -600,6 +715,11 @@ declaration_list
 returns [String name_line]
     : dec1=declaration_list COMMA ID
     {
+        
+        if(Main.st.getCurrentScope().getParent()!=null)
+        {
+            stack_offset += 2;
+        }
         boolean b = lookUp($ID.getText());
         if(b==true){
             Main.syntaxErrorCount++;
@@ -660,6 +780,10 @@ returns [String name_line]
     }
     | ID
     {
+        if(Main.st.getCurrentScope().getParent()!=null)
+        {
+            stack_offset += 2;
+        }
         boolean b = lookUp($ID.getText());
         if(b==true){
             Main.syntaxErrorCount++;
@@ -1110,20 +1234,10 @@ expression
     $name_line =$l.name_line;
     $type = $l.type;
     }
-    | v=variable a=ASSIGNOP to=ternary_expression
-    {
-        writeIntoParserLogFile(
-                "Line "
-                + $to.stop.getLine() + ": expression : variable ASSIGNOP ternary_expression\n" 
-            );  
-            $name_line=$v.name_line+""+ $a.text + "" + $to.name_line;
-        writeIntoParserLogFile(
-                "Line "
-                + $to.stop.getLine() +": " +$name_line +"\n"
-            );  
-    }
+
     | v=variable a=ASSIGNOP l=logic_expression
     {
+        
         if(!$l.name_line.equalsIgnoreCase("debug")){ 
                 writeIntoParserLogFile(
                 "Line "
@@ -1155,6 +1269,21 @@ expression
         if(Main.st.lookup(actualName)!=null && !isError){
             SymbolInfo sym = Main.st.lookup(actualName);
             String IDtokenType = sym.getIDType();
+
+            int stck_off = sym.getStackOffset();
+            if(stck_off==-1)
+            {
+                if($l.isConst)
+                {
+                    writeIntoAsmFile("\tMOV AX,"+$l.name_line);
+                }
+                //writeIntoAsmFile("\tMOV AX,"+$l.name_line);
+                writeIntoAsmFile("\tMOV "+sym.getName()+",AX");
+            }
+            else 
+            {
+                writeIntoAsmFile("\tMOV [BP-"+stck_off+"],AX");
+            }
             //writeIntoParserLogFile("debug at line "  + $l.stop.getLine() +IDtokenType+"\n");
             if(!IDtokenType.equalsIgnoreCase(normalizeType($l.type)) && !IDtokenType.equalsIgnoreCase("array") && $l.type!=null){
                 if(!(IDtokenType.equalsIgnoreCase("float") && normalizeType($l.type).equalsIgnoreCase("int"))){
@@ -1188,9 +1317,10 @@ ternary_expression
     };
 
 logic_expression
-    returns [String name_line,String type]
+    returns [String name_line,String type,boolean isConst]
     : r=rel_expression
     {
+        $isConst=$r.isConst;
         if(!$r.name_line.equalsIgnoreCase("debug")){  
             writeIntoParserLogFile(
             "Line "
@@ -1202,6 +1332,7 @@ logic_expression
     }
     | r=rel_expression LOGICOP re=rel_expression
     {
+        $isConst=false;
         writeIntoParserLogFile(
         "Line "
         + $re.stop.getLine() + ": logic_expression : rel_expression LOGICOP rel_expression\n\n" + $r.name_line+ "" + $LOGICOP.getText() + "" + $re.name_line +"\n"
@@ -1211,9 +1342,10 @@ logic_expression
     ;
 
 rel_expression
-    returns [String name_line,String type]
+    returns [String name_line,String type,boolean isConst]
     : s=simple_expression
     {
+        $isConst=$s.isConst;
         if(!$s.name_line.equalsIgnoreCase("debug")){ 
                 writeIntoParserLogFile(
                 "Line "
@@ -1225,6 +1357,7 @@ rel_expression
     }
     | s=simple_expression RELOP s1=simple_expression
     {
+        $isConst=false;
         writeIntoParserLogFile(
         "Line "
         + $s1.stop.getLine() + ": rel_expression : simple_expression RELOP simple_expression\n\n" + $s.name_line +"" +$RELOP.getText() +""+$s1.name_line +"\n"
@@ -1234,9 +1367,10 @@ rel_expression
     ;
 
 simple_expression
-    returns [String name_line,String type]
+    returns [String name_line,String type,boolean isConst]
     : t=term
     {
+        $isConst=$t.isConst;
         writeIntoParserLogFile(
         "Line "
         + $t.stop.getLine() + ": simple_expression : term\n\n" + $t.name_line +"\n"
@@ -1246,23 +1380,24 @@ simple_expression
     }
     | s=simple_expression ADDOP t=term
     {
+        
+        if($t.isConst)
+        { 
+            writeIntoAsmFile("\tMOV AX,"+$t.name_line);
+            
+        }
+    
+        $isConst=false;
+        writeIntoAsmFile("\tMOV DX,AX");
+        writeIntoAsmFile("\tMOV AX,"+$s.name_line);
         writeIntoParserLogFile(
         "Line "
         + $t.stop.getLine() + ": simple_expression : simple_expression ADDOP term\n\n" +$s.name_line+""+$ADDOP.getText()+"" +$t.name_line +"\n"
     );
         $name_line=$s.name_line+""+$ADDOP.getText()+"" +$t.name_line;
+        writeIntoAsmFile("\tADD AX,DX");
     }
-    // |t2=term ERROR_CHAR
-    // {
-    //     writeIntoParserLogFile(
-    //         "Error at line " + $ERROR_CHAR.getLine() + ": Unrecognized character " +$ERROR_CHAR.getText()+"\n"  
-            
-    //     );
-    //     writeIntoErrorFile(
-    //         "Error at line " + $ERROR_CHAR.getLine() + ": Unrecognized character " +$ERROR_CHAR.getText()+"\n"
-    //     );
-    //     $name_line=$t2.name_line;
-    // }
+
     |s=simple_expression ADDOP ASSIGNOP
  
     {
@@ -1280,9 +1415,10 @@ simple_expression
     ;
 
 term
-    returns [String name_line,String type]
+    returns [String name_line,String type,boolean isConst]
     : u=unary_expression
     {
+        $isConst = true;
         if(!$u.name_line.equalsIgnoreCase("debug")){ 
             writeIntoParserLogFile(
             "Line "
@@ -1295,6 +1431,67 @@ term
     }
     | t=term MULOP u=unary_expression
     {
+        
+        $isConst = false;
+        SymbolInfo sym = Main.st.lookup($u.name_line);
+        if(sym==null)
+        { 
+            
+            writeIntoAsmFile("\tMOV AX,"+$u.name_line);
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$u.name_line);
+            }
+            else{
+
+                writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
+            } 
+        }
+        
+
+
+        
+        writeIntoAsmFile("\tMOV CX,AX");
+        
+
+        sym = Main.st.lookup($t.name_line);
+                
+        if(sym==null)
+        { 
+            
+            writeIntoAsmFile("\tMOV AX,"+$t.name_line);
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$t.name_line);
+            }
+            else{
+
+                writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
+            } 
+        } 
+
+        writeIntoAsmFile("\tCWD");
+
+        if($MULOP.getText().equals("*"))
+        { 
+            writeIntoAsmFile("\tMUL CX");
+        }
+        else{ 
+            writeIntoAsmFile("\tDIV CX");
+        }
+
+        if($MULOP.getText().equals("%"))
+        { 
+            writeIntoAsmFile("\tPUSH DX");
+            writeIntoAsmFile("\tPOP AX");
+        }
+        
         writeIntoParserLogFile(
         "Line "
         + $u.stop.getLine() + ": term : term MULOP unary_expression\n" 
@@ -1348,9 +1545,10 @@ term
     ;
 
 unary_expression
-    returns [String name_line, String type]
+    returns [String name_line, String type,boolean isConst]
     : ADDOP u=unary_expression
     {
+        $isConst = false;
         writeIntoParserLogFile(
         "Line "
         + $u.stop.getLine() + ": unary_expression : ADDOP unary_expression\n\n" + $ADDOP.getText()+"" +$u.name_line +"\n"
@@ -1359,6 +1557,7 @@ unary_expression
     }
     | NOT u=unary_expression
     {
+        $isConst = false;
         writeIntoParserLogFile(
         "Line "
         + $u.stop.getLine() + ": unary_expression : NOT unary_expression\n\n" +$NOT.getText()+"" +$u.name_line +"\n"
@@ -1367,6 +1566,7 @@ unary_expression
     }
     | f=factor
     {
+        $isConst = true;
         if(!$f.name_line.equalsIgnoreCase("debug")){ 
             writeIntoParserLogFile(
             "Line "
@@ -1391,21 +1591,7 @@ factor
     );
         $name_line=$v.name_line;
     }
-    // |assign=ASSIGNOP
-    // {
-            
-    //     Main.syntaxErrorCount++;
-        
-    //     writeIntoParserLogFile(
-    //         "Error at line " + $assign.getLine() + ": syntax error, unexpected ASSIGNOP\n"
-            
-    //     );
-    //     writeIntoErrorFile(
-    //         "Error at line " + $assign.getLine() + ": syntax error, unexpected ASSIGNOP\n"
-    //     );
-    //     $name_line="debug";
-      
-    // }
+
     | ID LPAREN a=argument_list RPAREN
     {
         writeIntoParserLogFile(
@@ -1415,10 +1601,35 @@ factor
 
         SymbolInfo funcSymbol = Main.st.lookup($ID.getText());
 
+            if($ID.getText().equals("println"))
+            {
+                
+                SymbolInfo id = Main.st.lookup($a.name_line);
+                if(id!=null)
+                {
+                    if(id.getStackOffset()!=-1)
+                    {
+                        writeIntoAsmFile("\tMOV AX,[BP-"+id.getStackOffset()+"]");
+                        writeIntoAsmFile("\tCALL print_output");
+                        writeIntoAsmFile("\tCALL new_line");
+                    }
+                    else{
+                            writeIntoAsmFile("\tMOV AX,"+$a.name_line);
+                            writeIntoAsmFile("\tCALL print_output");
+                            writeIntoAsmFile("\tCALL new_line");
+                     }
+                }
+                else {
+                        writeIntoAsmFile("\tMOV AX,"+$a.name_line);
+                        writeIntoAsmFile("\tCALL print_output");
+                        writeIntoAsmFile("\tCALL new_line");
+                 }
 
+            }
         if (funcSymbol == null) {
             Main.syntaxErrorCount++;
             
+
             writeIntoParserLogFile(
                 "Error at line " + $RPAREN.getLine() + ": Undefined function " + $ID.getText() +  "\n"
                 
@@ -1511,6 +1722,7 @@ factor
     }
     | CONST_INT
     {
+        //writeIntoAsmFile("\tMOV AX,"+$CONST_INT.getText());
         writeIntoParserLogFile(
         "Line "
         + $CONST_INT.getLine() + ": factor : CONST_INT\n\n" +$CONST_INT.getText() +"\n"
@@ -1520,6 +1732,7 @@ factor
     }
     | CONST_FLOAT
     {
+        //writeIntoAsmFile("\tMOV AX,"+$CONST_FLOAT.getText());
         writeIntoParserLogFile(
         "Line "
         + $CONST_FLOAT.getLine() + ": factor : CONST_FLOAT\n\n" +$CONST_FLOAT.getText() +"\n"

@@ -1,0 +1,14 @@
+JUL 10 2025
+1. 7:30 pm -8:30 pm - basic code
+1. 9:40 pm - 
+
+14 JUL 2025
+1. 10:13 am (during class) - 10:56 am -global var 
+2. 8:33 pm - 10:52 pm - input 1 on going, global var, local var, assign done , println start 
+
+15 JUL 2025
+1. 10:14 am - 1:00 pm - arithmatic - multiply and add 
+2. 7:30 pm - 8:04 pm - done till i + 2 * j, left -> labeling + printing logic 
+
+16 JUL 2025
+1. 12:42 am - 1:23 am - mod done 

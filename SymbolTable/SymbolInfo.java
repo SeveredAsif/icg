@@ -13,6 +13,7 @@ public class SymbolInfo{
         public int paramNumber;
         public ArrayList<String> paramList;
         public String arrayType;
+        public int stack_offset;
 
     
         public SymbolInfo(String name, String type,String print ){
@@ -42,6 +43,16 @@ public class SymbolInfo{
         }
         public SymbolInfo(String name, String type) {
             this(name, type, "");
+        }
+
+        public int getStackOffset()
+        {
+            return this.stack_offset;
+        }
+        
+        public void setStackOffset(int off)
+        {
+            this.stack_offset = off;
         }
 
         public String getName(){

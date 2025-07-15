@@ -13,11 +13,13 @@ import java.util.HashMap;
 public class Main {
     public static BufferedWriter parserLogFile;
     public static BufferedWriter errorFile;
+    public static BufferedWriter asmWriter;
     public static BufferedWriter lexLogFile;
     public static HashMap<String, String> op = new HashMap<>();
     public static SymbolTable st;
 
     public static int syntaxErrorCount = 0;
+    public static int prev_stack_off = 0;
     public static List<SymbolInfo> pendingInsertions;
     public static void addToPending(String name,String IDType){
         String print = "< " + name + " : " + "ID" + " >";
@@ -56,7 +58,7 @@ public class Main {
         //System.out.println("printing scopetable debug done"+st.getAllScopesAsString());
         pendingInsertions.clear();
     }
-    public static void addToSymbolTable(String type){
+    public static void addToSymbolTable(String type,int stck_off){
         for(SymbolInfo item: pendingInsertions){
             //item.IDtype = type;
             boolean b = st.insert(item);
@@ -69,7 +71,24 @@ public class Main {
                         }
                         item.arrayType=type;
                     }
-                }else{
+                }
+                else
+                {
+                    
+                    prev_stack_off += 2;
+                    if(prev_stack_off>stck_off)
+                    {
+                        System.out.println("ERRORRR! stack offset in main> stack offset in parser");
+                        item.setStackOffset(-1);
+                        System.out.println("Main stack offset: "+prev_stack_off+", parser stack offset: "+stck_off+",id name: "+item.getName());
+                        prev_stack_off -= 2;
+                        System.out.println("Main stack offset restored to "+prev_stack_off);
+                    }
+                    else 
+                    {
+                        item.setStackOffset(prev_stack_off);
+                        System.out.println("Main stack offset: "+prev_stack_off+", parser stack offset: "+stck_off+",id name: "+item.getName());
+                    }
                     item.setIDType(type);
                 }
                 
@@ -105,6 +124,9 @@ public class Main {
         String parserLogFileName = outputDirectory + "log.txt";
         String errorFileName = outputDirectory + "error.txt";
         String lexLogFileName = outputDirectory + "lexerLog.txt";
+        String asmFileName = outputDirectory + "output.asm";
+
+
         pendingInsertions = new ArrayList<>();
 
 
@@ -113,6 +135,7 @@ public class Main {
         parserLogFile = new BufferedWriter(new FileWriter(parserLogFileName));
         errorFile = new BufferedWriter(new FileWriter(errorFileName));
         lexLogFile = new BufferedWriter(new FileWriter(lexLogFileName));
+        asmWriter = new BufferedWriter(new FileWriter(asmFileName));
 
         // Create lexer and parser
         CharStream input = CharStreams.fromFileName(args[0]);
