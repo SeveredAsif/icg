@@ -13,6 +13,7 @@ import SymbolTable.SymbolInfo;
 
 @members {
     int stack_offset = 0;
+    int label = 0;
     // helper to write into parserLogFile
     void writeIntoParserLogFile(String message) {
         try {
@@ -23,6 +24,7 @@ import SymbolTable.SymbolInfo;
             System.err.println("Parser log error: " + e.getMessage());
         }
     }
+
     void writeIntoAsmFile(String message) {
         try {
             Main.asmWriter.write(message);
@@ -31,6 +33,12 @@ import SymbolTable.SymbolInfo;
         } catch (IOException e) {
             System.err.println("Parser log error: " + e.getMessage());
         }
+    }
+
+    void newLabel()
+    { 
+        label++;
+        writeIntoAsmFile("L"+label+":");
     }
 
 
@@ -1237,7 +1245,7 @@ expression
 
     | v=variable a=ASSIGNOP l=logic_expression
     {
-        
+        newLabel();
         if(!$l.name_line.equalsIgnoreCase("debug")){ 
                 writeIntoParserLogFile(
                 "Line "
@@ -1330,9 +1338,102 @@ logic_expression
         $name_line=$r.name_line;
         $type = $r.type;
     }
-    | r=rel_expression LOGICOP re=rel_expression
+    | r=rel_expression 
+    { 
+        newLabel();
+        //push the result to stack AX 
+
+        SymbolInfo sym = Main.st.lookup($r.name_line);
+        if(sym==null)
+        { 
+            //some constant
+            writeIntoAsmFile("\tMOV AX,"+$r.name_line);
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$r.name_line);
+            }
+            else
+            {
+                writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
+            } 
+        } 
+        
+        writeIntoAsmFile("\t MOV DX,AX");
+    }
+    LOGICOP re=rel_expression
     {
-        $isConst=false;
+       sym = Main.st.lookup($re.name_line);
+        if(sym==null)
+        { 
+            
+            writeIntoAsmFile("\tMOV AX,"+$re.name_line);
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$re.name_line);
+            }
+            else{
+                
+                writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
+            } 
+        }
+        //store logicop result in AX  
+
+        //DX has the LHS value,Ax has the RHS value
+        
+        if($LOGICOP.getText().equals("||"))
+        { 
+            //curr L9
+            //if DX true, jump to L10 - this level sets AX=1 
+            int next = label+1;
+            writeIntoAsmFile("\tCMP DX,1");
+            writeIntoAsmFile("\tJE L"+next);
+            //if AX true, jump to L10 - this level sets AX=1 
+            writeIntoAsmFile("\tCMP AX,1");
+            writeIntoAsmFile("\tJE L"+next);
+            //if reached here (none true), jump to L11 - this sets AX=0
+            next = label+2;
+            writeIntoAsmFile("\tJMP L"+next);
+            //L10
+            newLabel();
+            //AX=1
+            writeIntoAsmFile("\tMOV AX,1");
+            //jump to L12 - because L11 sets AX=0
+            next = label+2;
+            writeIntoAsmFile("\tJMP L"+next);
+            //L11
+            newLabel();
+            writeIntoAsmFile("\tMOV AX,0");
+        }
+        else if($LOGICOP.getText().equals("&&"))
+        { 
+            //curr L9
+            //if DX false, jump to L11 - this level sets AX=0 
+            int next = label+2;
+            writeIntoAsmFile("\tCMP DX,1");
+            writeIntoAsmFile("\tJNE L"+next);
+            //if AX false, jump to L11 - this level sets AX=0 
+            writeIntoAsmFile("\tCMP AX,1");
+            writeIntoAsmFile("\tJNE L"+next);
+
+  
+            //L10 - rhis level sets AX=1, both true
+            newLabel();
+            //AX=1
+            writeIntoAsmFile("\tMOV AX,1");
+            //jump to L12 - because L11 sets AX=0
+            next = label+2;
+            writeIntoAsmFile("\tJMP L"+next);
+            //L11
+            newLabel();
+            writeIntoAsmFile("\tMOV AX,0");
+        }
+
         writeIntoParserLogFile(
         "Line "
         + $re.stop.getLine() + ": logic_expression : rel_expression LOGICOP rel_expression\n\n" + $r.name_line+ "" + $LOGICOP.getText() + "" + $re.name_line +"\n"
@@ -1355,9 +1456,100 @@ rel_expression
         $name_line=$s.name_line;
         $type = $s.type;
     }
-    | s=simple_expression RELOP s1=simple_expression
+    | s=simple_expression
     {
+        newLabel();
         $isConst=false;
+        //push the result to stack AX 
+
+        SymbolInfo sym = Main.st.lookup($s.name_line);
+        if(sym==null)
+        { 
+            //some constant
+            writeIntoAsmFile("\tMOV AX,"+$s.name_line);
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$s.name_line);
+            }
+            else
+            {
+                writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
+            } 
+        } 
+        
+        writeIntoAsmFile("\t MOV DX,AX");
+    } 
+    RELOP s1=simple_expression
+    {
+
+        
+        sym = Main.st.lookup($s1.name_line);
+        if(sym==null)
+        { 
+            
+            writeIntoAsmFile("\tMOV AX,"+$s1.name_line);
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$s1.name_line);
+            }
+            else{
+                
+                writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
+            } 
+        }
+        //store relop result in AX  
+
+        //DX has the RHS value,Ax has the LHS value
+        writeIntoAsmFile("\tCMP DX,AX");
+        if($RELOP.getText().equals("<="))
+        { 
+            //curr L9
+            //if less equal, jump to L10 
+            int next = label+1;
+            writeIntoAsmFile("\tJLE L"+next);
+            //if not less equal, jump to L11
+            next = label+2;
+            writeIntoAsmFile("\tJMP L"+next);
+            //L10
+            newLabel();
+            //AX=1
+            writeIntoAsmFile("\tMOV AX,1");
+            //jump to L12
+            next = label+2;
+            writeIntoAsmFile("\tJMP L"+next);
+            //L11
+            newLabel();
+            writeIntoAsmFile("\tMOV AX,0");
+        }
+        else if($RELOP.getText().equals("!="))
+        { 
+            //curr L9
+            //if not equal, jump to L10 
+            int next = label+1;
+            writeIntoAsmFile("\tJNE L"+next);
+            //if equal, jump to L11
+            next = label+2;
+            writeIntoAsmFile("\tJMP L"+next);
+            //L10
+            newLabel();
+            //AX=1
+            writeIntoAsmFile("\tMOV AX,1");
+            //jump to L12
+            next = label+2;
+            writeIntoAsmFile("\tJMP L"+next);
+            //L11
+            newLabel();
+            writeIntoAsmFile("\tMOV AX,0");
+        }
+
+
+
         writeIntoParserLogFile(
         "Line "
         + $s1.stop.getLine() + ": rel_expression : simple_expression RELOP simple_expression\n\n" + $s.name_line +"" +$RELOP.getText() +""+$s1.name_line +"\n"
@@ -1381,6 +1573,7 @@ simple_expression
     | s=simple_expression ADDOP t=term
     {
         
+        newLabel();
         if($t.isConst)
         { 
             writeIntoAsmFile("\tMOV AX,"+$t.name_line);
@@ -1431,7 +1624,7 @@ term
     }
     | t=term MULOP u=unary_expression
     {
-        
+        newLabel();
         $isConst = false;
         SymbolInfo sym = Main.st.lookup($u.name_line);
         if(sym==null)
@@ -1548,7 +1741,29 @@ unary_expression
     returns [String name_line, String type,boolean isConst]
     : ADDOP u=unary_expression
     {
-        $isConst = false;
+        
+        newLabel();
+        
+
+        SymbolInfo sym = Main.st.lookup($u.name_line);
+        if(sym==null)
+        { 
+            //some constant
+            writeIntoAsmFile("\tMOV AX,"+$u.name_line);
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$u.name_line);
+                writeIntoAsmFile("\tNEG AX");
+            }
+            else
+            {
+                writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
+                writeIntoAsmFile("\tNEG AX");
+            } 
+        }         
         writeIntoParserLogFile(
         "Line "
         + $u.stop.getLine() + ": unary_expression : ADDOP unary_expression\n\n" + $ADDOP.getText()+"" +$u.name_line +"\n"
@@ -1604,6 +1819,7 @@ factor
             if($ID.getText().equals("println"))
             {
                 
+                newLabel();
                 SymbolInfo id = Main.st.lookup($a.name_line);
                 if(id!=null)
                 {
@@ -1722,7 +1938,7 @@ factor
     }
     | CONST_INT
     {
-        //writeIntoAsmFile("\tMOV AX,"+$CONST_INT.getText());
+        writeIntoAsmFile("\tMOV AX,"+$CONST_INT.getText());
         writeIntoParserLogFile(
         "Line "
         + $CONST_INT.getLine() + ": factor : CONST_INT\n\n" +$CONST_INT.getText() +"\n"
@@ -1732,7 +1948,7 @@ factor
     }
     | CONST_FLOAT
     {
-        //writeIntoAsmFile("\tMOV AX,"+$CONST_FLOAT.getText());
+        writeIntoAsmFile("\tMOV AX,"+$CONST_FLOAT.getText());
         writeIntoParserLogFile(
         "Line "
         + $CONST_FLOAT.getLine() + ": factor : CONST_FLOAT\n\n" +$CONST_FLOAT.getText() +"\n"
@@ -1742,6 +1958,32 @@ factor
     }
     | v=variable INCOP
     {
+        
+        newLabel();
+        //push the result to stack AX 
+
+        SymbolInfo sym = Main.st.lookup($v.name_line);
+        if(sym==null)
+        { 
+            //some constant
+            writeIntoAsmFile("\tMOV AX,"+$v.name_line);
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$v.name_line);
+                writeIntoAsmFile("\tINC AX");
+                writeIntoAsmFile("\tMOV "+$v.name_line+"AX");
+            }
+            else
+            {
+                writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
+                writeIntoAsmFile("\tINC AX");
+                writeIntoAsmFile("\tMOV [BP-"+offset+"],AX");
+            } 
+        } 
+        
         writeIntoParserLogFile(
         "Line "
         + $INCOP.getLine() + ": factor : variable INCOP\n\n" +$v.name_line +$INCOP.getText() +"\n"
