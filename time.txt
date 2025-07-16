@@ -16,3 +16,6 @@ JUL 10 2025
 3. 11:08 am - 12:05 pm - LE jumping done 
 4. 4:45 pm  - 5:09 pm , 5:12 pm - 5:33 pm - input 1 done 
 5. 7:07 pm - 10:21 - input 2 done 
+
+17 JUL 2025
+1. 1:24 am - 3:51 am - input 3 works

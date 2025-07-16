@@ -42,6 +42,8 @@ import SymbolTable.SymbolInfo;
     }
 
 
+
+
     // helper to write into Main.errorFile
     void writeIntoErrorFile(String message) {
         try {
@@ -922,33 +924,52 @@ statement returns [String name_line,boolean retuurn]
         $retuurn=false;
     }
 
-    | FOR LPAREN e1=expression_statement e2=expression_statement e3=expression RPAREN s=statement
+    | FOR 
+    { 
+        int Inclabel = label+11;
+    }
+    LPAREN e1=expression_statement 
+    { 
+        newLabel();
+        int forlabel = label;
+        writeIntoAsmFile(";for label");
+    }
+    e2=expression_statement 
+    { 
+        newLabel();
+        int afterChecklabel = label;
+        writeIntoAsmFile(";after check label");
+        writeIntoAsmFile("\tPOP AX");
+        writeIntoAsmFile("\tCMP AX,1");
+        writeIntoAsmFile("\tJE L"+Inclabel+" ;jumping to body");
+        int end = Inclabel+1;
+        writeIntoAsmFile("\tJMP L"+end+" ;jumping to end of loop,works if for doent print other labels");
+    } 
+    e3=expression RPAREN 
+    { 
+        newLabel();
+        Inclabel = label;
+        writeIntoAsmFile(";after inc label");    
+        writeIntoAsmFile("\tJMP L"+forlabel+" ;jumping to for");    
+    }
+    s=statement
     {
+        
+        // int next = label+1;
+        // writeIntoAsmFile("\tJMP L"+next+" ;jumping out of forlabel");
         writeIntoParserLogFile(
             "Line " + $s.stop.getLine() + ": statement : FOR LPAREN expression_statement expression_statement expression RPAREN statement\n\n"
             + "for(" + $e1.name_line + "" + $e2.name_line + "" + $e3.name_line + ")" + $s.name_line + "\n"
         );
         $name_line = "for(" + $e1.name_line + "" + $e2.name_line + "" + $e3.name_line + ")" + $s.name_line;
         $retuurn=false;
+        int inc = afterChecklabel+1;
+        writeIntoAsmFile("\tJMP L"+inc+" ;jumping to increase"); 
+        newLabel();
+        writeIntoAsmFile(";for end label"); 
     }
-    |FOREACH LPAREN exp=foreach_statement RPAREN s=statement
-    {
-        writeIntoParserLogFile(
-            "Line " + $s.stop.getLine() + ": statement : FOREACH LPAREN foreach_statement RPAREN statement\n\n"
-            + "foreach(" + $exp.name_line + "" + ")" + $s.name_line + "\n"
-        );
-        $name_line = "foreach(" + $exp.name_line + "" + ")" + $s.name_line;
-        $retuurn=false;
-    }
-    | FORIN LPAREN expf=forin_statement RPAREN s=statement
-    {
-        writeIntoParserLogFile(
-            "Line " + $s.stop.getLine() + ": statement : FORIN LPAREN forin_statement RPAREN statement\n\n"
-            + "forin(" + $expf.name_line + "" + ")" + $s.name_line + "\n"
-        );
-        $name_line = "forin(" + $expf.name_line + "" + ")" + $s.name_line;
-        $retuurn=false;
-    }
+
+
     | IF LPAREN e=expression RPAREN BREAK SEMICOLON
     {
         writeIntoParserLogFile(
@@ -998,9 +1019,6 @@ statement returns [String name_line,boolean retuurn]
     }
     ELSE s2=statement
     {
-        // newLabel(); //last label 
-        // next = label+2;
-        // writeIntoAsmFile("\t ekhane JMP L"+next);
      
         writeIntoParserLogFile(
             "Line " + $s2.stop.getLine() + ": statement : IF LPAREN expression RPAREN statement ELSE statement\n\n"
@@ -1013,15 +1031,6 @@ statement returns [String name_line,boolean retuurn]
         newLabel(); //last label 
         writeIntoAsmFile(";End of if else");
     }
-    | DO c=compound_statement WHILE LPAREN e=expression RPAREN sm=SEMICOLON
-    { 
-        writeIntoParserLogFile(
-            "Line " + $sm.getLine() + ": statement : DO compound_statement WHILE LPAREN expression RPAREN SEMICOLON\n\n"
-            + "do" + $c.name_line + "while(" + $e.name_line + ");\n"
-        );
-        $name_line = "do(" + $c.name_line + "while" + $e.name_line + ")";
-        $retuurn=false;
-    }
 
     |CONTINUE SEMICOLON
     {
@@ -1031,7 +1040,17 @@ statement returns [String name_line,boolean retuurn]
             + "CONTINUE outside loop\n"
         );    
     }
-    | WHILE LPAREN e=expression RPAREN s=statement
+    | WHILE 
+    { 
+        newLabel();
+        int whileLabel = label;
+        writeIntoAsmFile(";while label : "+whileLabel);
+    }
+    LPAREN e=expression 
+    { 
+
+    }
+    RPAREN s=statement
     {
         writeIntoParserLogFile(
             "Line " + $s.stop.getLine() + ": statement : WHILE LPAREN expression RPAREN statement\n\n"
@@ -1039,6 +1058,13 @@ statement returns [String name_line,boolean retuurn]
         );
         $name_line = "while(" + $e.name_line + ")" + $s.name_line;
         $retuurn=false;
+        writeIntoAsmFile("\tPOP AX");
+        writeIntoAsmFile("\tCMP AX,0");
+        int nextLabel = label+1;
+       
+        writeIntoAsmFile("\tJE L"+nextLabel);
+        
+        writeIntoAsmFile("\tJMP L"+whileLabel+";whilelabel jump");
     }
     | PRINTLN LPAREN ID RPAREN SEMICOLON
     {
@@ -1541,23 +1567,34 @@ rel_expression
         }
         if($RELOP.getText().equals("<"))
         { 
+            writeIntoAsmFile(";Less rule");
             //curr L9
             //if less , jump to L10 
             int next = label+1;
+        
+
+            
+
             writeIntoAsmFile("\tJL L"+next);
             //if not less equal, jump to L11
             next = label+2;
+            
+
+            
+
             writeIntoAsmFile("\tJMP L"+next);
             //L10
             newLabel();
             //AX=1
             writeIntoAsmFile("\tMOV AX,1");
+            writeIntoAsmFile("\tPUSH AX");
             //jump to L12
             next = label+2;
             writeIntoAsmFile("\tJMP L"+next);
             //L11
             newLabel();
             writeIntoAsmFile("\tMOV AX,0");
+            writeIntoAsmFile("\tPUSH AX");
         }
         if($RELOP.getText().equals(">"))
         { 
@@ -1647,13 +1684,31 @@ simple_expression
         newLabel();
         if($t.isConst)
         { 
-            writeIntoAsmFile("\tMOV AX,"+$t.name_line);
+           // writeIntoAsmFile("\tMOV AX,"+$t.name_line);
             
         }
     
         $isConst=false;
         writeIntoAsmFile("\tMOV DX,AX");
-        writeIntoAsmFile("\tMOV AX,"+$s.name_line);
+
+       SymbolInfo sym = Main.st.lookup($s.name_line);
+        if(sym==null)
+        { 
+            
+            writeIntoAsmFile("\tMOV AX,"+$s.name_line);
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$s.name_line);
+            }
+            else{
+
+                writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
+            } 
+        }
+ 
         writeIntoParserLogFile(
         "Line "
         + $t.stop.getLine() + ": simple_expression : simple_expression ADDOP term\n\n" +$s.name_line+""+$ADDOP.getText()+"" +$t.name_line +"\n"
@@ -2009,6 +2064,7 @@ factor
     }
     | CONST_INT
     {
+        newLabel();
         writeIntoAsmFile("\tMOV AX,"+$CONST_INT.getText());
         writeIntoParserLogFile(
         "Line "
@@ -2019,6 +2075,7 @@ factor
     }
     | CONST_FLOAT
     {
+        newLabel();
         writeIntoAsmFile("\tMOV AX,"+$CONST_FLOAT.getText());
         writeIntoParserLogFile(
         "Line "
@@ -2063,6 +2120,33 @@ factor
     }
     | v=variable DECOP
     {
+        
+        newLabel();
+
+
+        SymbolInfo sym = Main.st.lookup($v.name_line);
+        if(sym==null)
+        { 
+            //some constant
+            writeIntoAsmFile("\tMOV AX,"+$v.name_line);
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$v.name_line);
+                writeIntoAsmFile("\tDEC AX");
+                writeIntoAsmFile("\tMOV "+$v.name_line+"AX");
+                writeIntoAsmFile("\tPUSH AX");
+            }
+            else
+            {
+                writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
+                writeIntoAsmFile("\tDEC AX");
+                writeIntoAsmFile("\tMOV [BP-"+offset+"],AX");
+                writeIntoAsmFile("\tPUSH AX");
+            } 
+        }         
         writeIntoParserLogFile(
         "Line "
         + $DECOP.getLine() + ": factor : variable DECOP\n\n" +$v.name_line +$DECOP.getText() +"\n"
