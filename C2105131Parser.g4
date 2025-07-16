@@ -958,48 +958,60 @@ statement returns [String name_line,boolean retuurn]
         $name_line = "if(" + $e.name_line + ")" +  " break;\n";
         $retuurn=false;
     }
-    | IF LPAREN e=expression RPAREN s=statement
+    | IF 
+    { 
+        //currlabel = 6 
+    }
+    LPAREN e=expression RPAREN 
+    { 
+        int next = label+2;
+        //writeIntoAsmFile("\tCMP AX,0"); //if false, jump to next label
+        writeIntoAsmFile("\tJMP L"+next); //jmp to label 8, curr label = 6, next label 7=statement's label
+    }
+    s=statement
     {
+        //label 7 created in statement
+        // newLabel(); //label 8
+        // next = label+2;
+        // writeIntoAsmFile("\tJMP L"+next);
         writeIntoParserLogFile(
             "Line " + $s.stop.getLine() + ": statement : IF LPAREN expression RPAREN statement\n\n"
             + "if(" + $e.name_line + ")" + $s.name_line + "\n"
         );
         $name_line = "if(" + $e.name_line + ")" + $s.name_line;
         $retuurn=false;
+        
     }
-    | IF LPAREN e=expression RPAREN s1=statement ELSE s2=statement
+    | IF LPAREN e=expression RPAREN 
+    { 
+        int next = label+3; //
+        //this section is under not equals of expression region. so it should jump to label+2 (label+1 is for equals) 
+        //writeIntoAsmFile("\tCMP AX,0"); //if false, jump to next label
+        writeIntoAsmFile("\tJMP L"+next); //jmp to label 8, curr label = 6, next label 7=statement's label        
+    }
+    s1=statement 
+    { 
+        //label 7 created in statement
+        newLabel(); //label 8 for else if , redundant ig 
+        next = label+5;
+        writeIntoAsmFile("\tJMP L"+next);
+    }
+    ELSE s2=statement
     {
+        // newLabel(); //last label 
+        // next = label+2;
+        // writeIntoAsmFile("\t ekhane JMP L"+next);
+     
         writeIntoParserLogFile(
             "Line " + $s2.stop.getLine() + ": statement : IF LPAREN expression RPAREN statement ELSE statement\n\n"
             + "if(" + $e.name_line + ")" + $s1.name_line + "else " + $s2.name_line + "\n"
         );
         $name_line = "if(" + $e.name_line + ")" + $s1.name_line + "else " + $s2.name_line;
         $retuurn=false;
-    }
-    | TIMES LPAREN l=logic_expression RPAREN s=statement
-    {
-        if(Main.st.lookup($l.name_line)!=null)
-        {
-        if(!Main.st.lookup($l.name_line).getIDType().equalsIgnoreCase("int")){
-            Main.syntaxErrorCount++;
-            writeIntoParserLogFile("Error at line :" + $s.stop.getLine() + "Not integer iteration count\n");
-            writeIntoErrorFile("Error at line : " + $s.stop.getLine() + "Not integer iteration count\n");
-        }
-        }
-        if($l.name_line.contains("."))
-        { 
-            Main.syntaxErrorCount++;
-            writeIntoParserLogFile("Error at line " + $s.stop.getLine() + "Not integer iteration count\n");
-            writeIntoErrorFile("Error at line " + $s.stop.getLine() + "Not integer iteration count\n");
-                    
-        }
-
-        writeIntoParserLogFile(
-            "Line " + $RPAREN.getLine() + ": statement : TIMES LPAREN logic_expression RPAREN statement\n\n"
-            + "times(" + $l.name_line + ")" + $s.name_line + "\n"
-        );
-        $name_line = "times(" + $l.name_line + ")" + $s.name_line + "\n";
-        $retuurn=false;
+        newLabel();
+        newLabel();
+        newLabel(); //last label 
+        writeIntoAsmFile(";End of if else");
     }
     | DO c=compound_statement WHILE LPAREN e=expression RPAREN sm=SEMICOLON
     { 
@@ -1527,6 +1539,46 @@ rel_expression
             newLabel();
             writeIntoAsmFile("\tMOV AX,0");
         }
+        if($RELOP.getText().equals("<"))
+        { 
+            //curr L9
+            //if less , jump to L10 
+            int next = label+1;
+            writeIntoAsmFile("\tJL L"+next);
+            //if not less equal, jump to L11
+            next = label+2;
+            writeIntoAsmFile("\tJMP L"+next);
+            //L10
+            newLabel();
+            //AX=1
+            writeIntoAsmFile("\tMOV AX,1");
+            //jump to L12
+            next = label+2;
+            writeIntoAsmFile("\tJMP L"+next);
+            //L11
+            newLabel();
+            writeIntoAsmFile("\tMOV AX,0");
+        }
+        if($RELOP.getText().equals(">"))
+        { 
+            //curr L9
+            //if less , jump to L10 
+            int next = label+1;
+            writeIntoAsmFile("\tJG L"+next);
+            //if not less equal, jump to L11
+            next = label+2;
+            writeIntoAsmFile("\tJMP L"+next);
+            //L10
+            newLabel();
+            //AX=1
+            writeIntoAsmFile("\tMOV AX,1");
+            //jump to L12
+            next = label+2;
+            writeIntoAsmFile("\tJMP L"+next);
+            //L11
+            newLabel();
+            writeIntoAsmFile("\tMOV AX,0");
+        }
         else if($RELOP.getText().equals("!="))
         { 
             //curr L9
@@ -1547,7 +1599,26 @@ rel_expression
             newLabel();
             writeIntoAsmFile("\tMOV AX,0");
         }
-
+        else if($RELOP.getText().equals("=="))
+        { 
+            //curr L9
+            //if equal, jump to L10 
+            int next = label+1;
+            writeIntoAsmFile("\tJE L"+next);
+            //if not equal, jump to L11
+            next = label+2;
+            writeIntoAsmFile("\tJMP L"+next);
+            //L10
+            newLabel();
+            //AX=1
+            writeIntoAsmFile("\tMOV AX,1");
+            //jump to L12
+            next = label+2;
+            writeIntoAsmFile("\tJMP L"+next);
+            //L11
+            newLabel();
+            writeIntoAsmFile("\tMOV AX,0");
+        }
 
 
         writeIntoParserLogFile(
