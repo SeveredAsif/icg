@@ -1,10 +1,18 @@
+int a;
 int food(int x,int y)
 {
-	int z;
+	
+	int z,m,op;
+	z=1;
+	op=100;
+	x=2;
+	y=10;
 }
 int main(){
  
 	int i,j,k;
+	j=5;
+	food(1,2);
 	return 0;
 }
 
