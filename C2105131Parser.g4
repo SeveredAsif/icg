@@ -1055,33 +1055,43 @@ statement returns [String name_line,boolean retuurn,int lbl]
     | FOR 
     { 
         
-        int Inclabel = label+11;
     }
     LPAREN e1=expression_statement 
     { 
         newLabel();
         int forlabel = label;
-        writeIntoAsmFile(";for label");
+        writeIntoAsmFile(";for label --denotes i=0");
     }
     e2=expression_statement 
     { 
         newLabel();
-        int afterChecklabel = label;
-        writeIntoAsmFile(";after check label");
+        writeIntoAsmFile(";after check label,if true, will come here jumping");
+        label++; //elseLabel
+        int endL = label;
         writeIntoAsmFile("\tPOP AX");
         stack_offset-=2;
-        writeIntoAsmFile("\tCMP AX,1");
-        writeIntoAsmFile("\tJE L"+Inclabel+" ;jumping to body");
-        int end = Inclabel+1;
-        //writeIntoAsmFile("end label: "+stack.pop);
-        writeIntoAsmFile("\tJMP L"+end+" ;jumping to end of loop,works if for doent print other labels");
+        writeIntoAsmFile("\tCMP AX,0");
+        writeIntoAsmFile("\tJE L"+ endL + "     ;jumping to else, as AX is 0");
+
+        label++; //true label
+        int trueL = label;
+        label++; //inc
+        int increase = label;
+
+        //will jump to true, as we didnt jump to false
+        writeIntoAsmFile("\tJMP L"+trueL+"       ;will jump to true, as we didnt jump to false");
+        writeIntoAsmFile("L"+increase+":       ;after this label, loop will go to increase i");
+
+        
+        //writeIntoAsmFile("\tJMP L"+endL+"  ;jumping to end of loop,works if for doent print other labels");
     } 
     e3=expression RPAREN 
     { 
-        newLabel();
-        Inclabel = label;
-        writeIntoAsmFile(";after inc label");    
-        writeIntoAsmFile("\tJMP L"+forlabel+" ;jumping to for");    
+        
+        writeIntoAsmFile(";after inc ");
+        writeIntoAsmFile("JMP L"+forlabel);    
+        writeIntoAsmFile("L"+trueL+":    ;this is the true label,after this, main loop execution");
+
     }
     s=statement
     {
@@ -1094,11 +1104,14 @@ statement returns [String name_line,boolean retuurn,int lbl]
         );
         $name_line = "for(" + $e1.name_line + "" + $e2.name_line + "" + $e3.name_line + ")" + $s.name_line;
         $retuurn=false;
-        int inc = afterChecklabel+1;
-        writeIntoAsmFile("\tJMP L"+inc+" ;jumping to increase"); 
-        newLabel();
-        stack.push("L"+label);
-        writeIntoAsmFile(";for end label"); 
+        // int inc = afterChecklabel+1;
+        // writeIntoAsmFile("\tJMP L"+inc+" ;jumping to increase"); 
+        // newLabel();
+        // stack.push("L"+label);
+        // writeIntoAsmFile(";for end label"); 
+
+        writeIntoAsmFile("\tJMP L"+increase+" ;jumping to increase label");
+        writeIntoAsmFile("\tL"+endL+":  ;fir end label");    
     }
 
 
@@ -1180,7 +1193,12 @@ statement returns [String name_line,boolean retuurn,int lbl]
     }
     LPAREN e=expression 
     { 
-
+        label++;
+        int nextL=label;
+        label++;
+        int endL=label;
+        writeIntoAsmFile("\tJMP L"+endL+"  ;jumping to end cause condition false");
+        writeIntoAsmFile("L"+nextL+":   ;will come here if true");
     }
     RPAREN s=statement
     {
@@ -1190,14 +1208,15 @@ statement returns [String name_line,boolean retuurn,int lbl]
         );
         $name_line = "while(" + $e.name_line + ")" + $s.name_line;
         $retuurn=false;
-        writeIntoAsmFile("\tPOP AX");
-        stack_offset-=2;
-        writeIntoAsmFile("\tCMP AX,0");
-        int nextLabel = label+1;
+        // writeIntoAsmFile("\tPOP AX");
+        // stack_offset-=2;
+        // writeIntoAsmFile("\tCMP AX,0");
+        // int nextLabel = label+1;
        
-        writeIntoAsmFile("\tJE L"+nextLabel);
+        // writeIntoAsmFile("\tJE L"+nextLabel);
         
         writeIntoAsmFile("\tJMP L"+whileLabel+";whilelabel jump");
+        writeIntoAsmFile("L"+endL+":    ;while ended");
     }
     | PRINTLN LPAREN ID RPAREN SEMICOLON
     {
@@ -1737,7 +1756,7 @@ rel_expression
         if(sym==null)
         { 
             
-            writeIntoAsmFile("\tMOV AX,"+$s1.name_line);
+            writeIntoAsmFile("\tPOP AX;because it is already in stack");
             // writeIntoAsmFile("\tPUSH AX");
             // stack_offset+=2;
         }

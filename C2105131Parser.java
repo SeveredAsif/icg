@@ -2178,7 +2178,6 @@ public class C2105131Parser extends Parser {
 				match(FOR);
 				 
 				        
-				        int Inclabel = label+11;
 				    
 				setState(258);
 				match(LPAREN);
@@ -2187,31 +2186,42 @@ public class C2105131Parser extends Parser {
 				 
 				        newLabel();
 				        int forlabel = label;
-				        writeIntoAsmFile(";for label");
+				        writeIntoAsmFile(";for label --denotes i=0");
 				    
 				setState(261);
 				((StatementContext)_localctx).e2 = expression_statement();
 				 
 				        newLabel();
-				        int afterChecklabel = label;
-				        writeIntoAsmFile(";after check label");
+				        writeIntoAsmFile(";after check label,if true, will come here jumping");
+				        label++; //elseLabel
+				        int endL = label;
 				        writeIntoAsmFile("\tPOP AX");
 				        stack_offset-=2;
-				        writeIntoAsmFile("\tCMP AX,1");
-				        writeIntoAsmFile("\tJE L"+Inclabel+" ;jumping to body");
-				        int end = Inclabel+1;
-				        //writeIntoAsmFile("end label: "+stack.pop);
-				        writeIntoAsmFile("\tJMP L"+end+" ;jumping to end of loop,works if for doent print other labels");
+				        writeIntoAsmFile("\tCMP AX,0");
+				        writeIntoAsmFile("\tJE L"+ endL + "     ;jumping to else, as AX is 0");
+
+				        label++; //true label
+				        int trueL = label;
+				        label++; //inc
+				        int increase = label;
+
+				        //will jump to true, as we didnt jump to false
+				        writeIntoAsmFile("\tJMP L"+trueL+"       ;will jump to true, as we didnt jump to false");
+				        writeIntoAsmFile("L"+increase+":       ;after this label, loop will go to increase i");
+
+				        
+				        //writeIntoAsmFile("\tJMP L"+endL+"  ;jumping to end of loop,works if for doent print other labels");
 				    
 				setState(263);
 				((StatementContext)_localctx).e3 = expression();
 				setState(264);
 				match(RPAREN);
 				 
-				        newLabel();
-				        Inclabel = label;
-				        writeIntoAsmFile(";after inc label");    
-				        writeIntoAsmFile("\tJMP L"+forlabel+" ;jumping to for");    
+				        
+				        writeIntoAsmFile(";after inc ");
+				        writeIntoAsmFile("JMP L"+forlabel);    
+				        writeIntoAsmFile("L"+trueL+":    ;this is the true label,after this, main loop execution");
+
 				    
 				setState(266);
 				((StatementContext)_localctx).s = statement();
@@ -2225,11 +2235,14 @@ public class C2105131Parser extends Parser {
 				        );
 				        ((StatementContext)_localctx).name_line =  "for(" + ((StatementContext)_localctx).e1.name_line + "" + ((StatementContext)_localctx).e2.name_line + "" + ((StatementContext)_localctx).e3.name_line + ")" + ((StatementContext)_localctx).s.name_line;
 				        ((StatementContext)_localctx).retuurn = false;
-				        int inc = afterChecklabel+1;
-				        writeIntoAsmFile("\tJMP L"+inc+" ;jumping to increase"); 
-				        newLabel();
-				        stack.push("L"+label);
-				        writeIntoAsmFile(";for end label"); 
+				        // int inc = afterChecklabel+1;
+				        // writeIntoAsmFile("\tJMP L"+inc+" ;jumping to increase"); 
+				        // newLabel();
+				        // stack.push("L"+label);
+				        // writeIntoAsmFile(";for end label"); 
+
+				        writeIntoAsmFile("\tJMP L"+increase+" ;jumping to increase label");
+				        writeIntoAsmFile("\tL"+endL+":  ;fir end label");    
 				    
 				}
 				break;
@@ -2369,7 +2382,12 @@ public class C2105131Parser extends Parser {
 				setState(303);
 				((StatementContext)_localctx).e = expression();
 				 
-
+				        label++;
+				        int nextL=label;
+				        label++;
+				        int endL=label;
+				        writeIntoAsmFile("\tJMP L"+endL+"  ;jumping to end cause condition false");
+				        writeIntoAsmFile("L"+nextL+":   ;will come here if true");
 				    
 				setState(305);
 				match(RPAREN);
@@ -2382,14 +2400,15 @@ public class C2105131Parser extends Parser {
 				        );
 				        ((StatementContext)_localctx).name_line =  "while(" + ((StatementContext)_localctx).e.name_line + ")" + ((StatementContext)_localctx).s.name_line;
 				        ((StatementContext)_localctx).retuurn = false;
-				        writeIntoAsmFile("\tPOP AX");
-				        stack_offset-=2;
-				        writeIntoAsmFile("\tCMP AX,0");
-				        int nextLabel = label+1;
+				        // writeIntoAsmFile("\tPOP AX");
+				        // stack_offset-=2;
+				        // writeIntoAsmFile("\tCMP AX,0");
+				        // int nextLabel = label+1;
 				       
-				        writeIntoAsmFile("\tJE L"+nextLabel);
+				        // writeIntoAsmFile("\tJE L"+nextLabel);
 				        
 				        writeIntoAsmFile("\tJMP L"+whileLabel+";whilelabel jump");
+				        writeIntoAsmFile("L"+endL+":    ;while ended");
 				    
 				}
 				break;
@@ -3524,7 +3543,7 @@ public class C2105131Parser extends Parser {
 				        if(sym==null)
 				        { 
 				            
-				            writeIntoAsmFile("\tPOP AX ;already have result in stack,as symbol is null");
+				            writeIntoAsmFile("\tPOP AX;because it is already in stack");
 				            // writeIntoAsmFile("\tPUSH AX");
 				            // stack_offset+=2;
 				        }
