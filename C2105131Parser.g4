@@ -9,6 +9,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import SymbolTable.SymbolInfo;
 
+import java.util.Stack;
 }
 
 @members {
@@ -20,6 +21,7 @@ import SymbolTable.SymbolInfo;
     int paramSize = 0;
     int sub = 0;
     int prev_sub = 0;
+    Stack<String> stack = new Stack<>();
     // helper to write into parserLogFile
     void writeIntoParserLogFile(String message) {
         try {
@@ -423,7 +425,7 @@ func_definition
         //writeIntoAsmFile("stack offset restoring from "+stack_offset + " to "+prev_offset);
 
         writeIntoAsmFile($ID.getText()+" ENDP");
-
+        exitScope();
 
     }
     | t=type_specifier 
@@ -615,7 +617,7 @@ func_definition
 
             writeIntoAsmFile(new_line_and_print_func);
         }
-        
+        exitScope();
     }
     ;
 
@@ -729,7 +731,7 @@ compound_statement
         );
         $name_line = "{\n" + $stmts.name_line + "\n}";
         $retuurn=$stmts.retuurn;
-        exitScope();
+        //exitScope();
     }
     | LCURL RCURL
     {
@@ -1052,6 +1054,7 @@ statement returns [String name_line,boolean retuurn,int lbl]
 
     | FOR 
     { 
+        
         int Inclabel = label+11;
     }
     LPAREN e1=expression_statement 
@@ -1070,6 +1073,7 @@ statement returns [String name_line,boolean retuurn,int lbl]
         writeIntoAsmFile("\tCMP AX,1");
         writeIntoAsmFile("\tJE L"+Inclabel+" ;jumping to body");
         int end = Inclabel+1;
+        //writeIntoAsmFile("end label: "+stack.pop);
         writeIntoAsmFile("\tJMP L"+end+" ;jumping to end of loop,works if for doent print other labels");
     } 
     e3=expression RPAREN 
@@ -1093,6 +1097,7 @@ statement returns [String name_line,boolean retuurn,int lbl]
         int inc = afterChecklabel+1;
         writeIntoAsmFile("\tJMP L"+inc+" ;jumping to increase"); 
         newLabel();
+        stack.push("L"+label);
         writeIntoAsmFile(";for end label"); 
     }
 
@@ -1696,7 +1701,8 @@ rel_expression
         if(sym==null)
         { 
             //some constant
-            writeIntoAsmFile("\tMOV AX,"+$s.name_line);
+            
+            writeIntoAsmFile(Main.st.getAllScopesAsString());
             // writeIntoAsmFile("\tPUSH AX");
             // stack_offset+=2;
         }
@@ -1704,7 +1710,7 @@ rel_expression
             int offset = sym.getStackOffset();
             if(offset==-1)
             {
-                writeIntoAsmFile("\tMOV AX,"+$s.name_line);
+                writeIntoAsmFile("\t stack offset -1 MOV AX,"+$s.name_line);
                 // writeIntoAsmFile("\tPUSH AX");
                 // stack_offset+=2;
             }
@@ -1712,9 +1718,9 @@ rel_expression
             {
                 //writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
                 if (offset < 0) {
-                    writeIntoAsmFile("\tMOV [BP+" + (-offset) + "],AX ;");
+                    writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "] ;");
                 } else {
-                    writeIntoAsmFile("\tMOV [BP-" + offset + "],AX ; ");
+                    writeIntoAsmFile("\tMOV AX,[BP-" + offset + "] ; ");
                 }
                 // writeIntoAsmFile("\tPUSH AX");
                 // stack_offset+=2;
@@ -1745,9 +1751,9 @@ rel_expression
                 
                 //writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
                 if (offset < 0) {
-                    writeIntoAsmFile("\tMOV [BP+" + (-offset) + "],AX ;");
+                    writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "] ;");
                 } else {
-                    writeIntoAsmFile("\tMOV [BP-" + offset + "],AX ; ");
+                    writeIntoAsmFile("\tMOV AX,[BP-" + offset + "] ; ");
                 }
                 // writeIntoAsmFile("\tPUSH AX");
                 // stack_offset+=2;
