@@ -23,7 +23,6 @@ int main(){
 	j = 6;
 	
 	func_a();
-	println(a);
 	
 	k = foo(i);
 	println(k);

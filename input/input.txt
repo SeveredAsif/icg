@@ -1,19 +1,10 @@
+int food(int x,int y)
+{
+	int z;
+}
 int main(){
  
 	int i,j,k;
-	
-	i = 3;
-	j = 8;
-	k = 6;
-	
-	
-	if(i==3){
-		println(j);
-	}
-	else if(i==4){
-		println(k);
-	}	
-	 
 	return 0;
 }
 

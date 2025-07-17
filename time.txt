@@ -19,3 +19,8 @@ JUL 10 2025
 
 17 JUL 2025
 1. 1:24 am - 3:51 am - input 3 works
+2. 10:24 am - 11:03 am - without argument function call impl
+3. 11:05 am -  2:27 pm - input 4 devastated me, not completed
+4. 3:08 pm - 3:22 pm - got some hold of push pop 
+5. 3:39 pm - 5:16 pm - push pop fixed. now function local variable handle to do 
+6. 5:51 pm - 

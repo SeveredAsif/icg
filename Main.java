@@ -80,7 +80,7 @@ public class Main {
                     {
                         System.out.println("ERRORRR! stack offset in main> stack offset in parser");
                         item.setStackOffset(-1);
-                        System.out.println("Main stack offset: "+prev_stack_off+", parser stack offset: "+stck_off+",id name: "+item.getName());
+                        System.out.println("Main stack offset: "+prev_stack_off+", parser stack offset: "+stck_off+",id name: "+item.getName()+" stack off for it: "+item.getStackOffset());
                         prev_stack_off -= 2;
                         System.out.println("Main stack offset restored to "+prev_stack_off);
                     }

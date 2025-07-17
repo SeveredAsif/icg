@@ -13,7 +13,7 @@ public class SymbolInfo{
         public int paramNumber;
         public ArrayList<String> paramList;
         public String arrayType;
-        public int stack_offset;
+        private int stack_offset;
 
     
         public SymbolInfo(String name, String type,String print ){
@@ -47,12 +47,18 @@ public class SymbolInfo{
 
         public int getStackOffset()
         {
-            return this.stack_offset;
+            System.out.println("stack offset of" + getName() + " is returning as " + this.stack_offset);
+            int ret = this.stack_offset;
+            if(ret==0) ret = -1;
+            System.out.println("finally returning "+ret);
+            return ret;
         }
         
         public void setStackOffset(int off)
         {
+            System.out.println("stack offset of" + getName() + " is being set to " + off);
             this.stack_offset = off;
+            System.out.println("stack offset of" + getName() + " is  finally " + this.stack_offset);
         }
 
         public String getName(){
