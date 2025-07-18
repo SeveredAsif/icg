@@ -1267,6 +1267,8 @@ statement returns [String name_line,boolean retuurn,int lbl]
         int stmt_label = label;
         label++;
         int endL = label;
+        writeIntoAsmFile("\tPOP AX   ;popping the AX that was pushed in rel_op,for false");
+        stack_offset -=2;
         if (!($e.name_line.contains("++") || $e.name_line.contains("--"))) { 
             writeIntoAsmFile("\tJMP L" + endL + " ; will jump to end if reaches here");
         }
@@ -1276,6 +1278,7 @@ statement returns [String name_line,boolean retuurn,int lbl]
         }
 
         writeIntoAsmFile("L"+stmt_label+":  ;will jump here from compare,if true");
+        writeIntoAsmFile("\tPOP AX   ;popping the AX that was pushed in rel_op,for true");
     }
     RPAREN s=statement
     {
@@ -1682,7 +1685,7 @@ logic_expression
         if(sym==null)
         { 
             //some constant
-            writeIntoAsmFile("\tMOV AX,"+$r.name_line);
+            writeIntoAsmFile("\tPOP AX ;getting res from stack"+$r.name_line);
             // writeIntoAsmFile("\tPUSH AX");
             // stack_offset += 2;
 
@@ -1963,15 +1966,15 @@ rel_expression
             newLabel();
             //AX=1
             writeIntoAsmFile("\tMOV AX,1");
-            //writeIntoAsmFile("\tPUSH AX");
+            writeIntoAsmFile("\tPUSH AX");
             //jump to L12
             next = label+2;
             writeIntoAsmFile("\tJMP L"+next);
             //L11
             newLabel();
             writeIntoAsmFile("\tMOV AX,0");
-            // writeIntoAsmFile("\tPUSH AX");
-            // stack_offset+=2;
+             writeIntoAsmFile("\tPUSH AX");
+            stack_offset+=2;
         }
         else if($RELOP.getText().equals("!="))
         { 
