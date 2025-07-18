@@ -1,7 +1,7 @@
 int f(int a){
 	int k;
 	k = 5;
-	while(k>4){
+	while(k>0){
 		a++;
 		k--;
 	}
@@ -14,7 +14,7 @@ int g(int a, int b){
     int x,i;
     x=f(a)+a+b;
     
-    for(i=0;i<1;i++){
+    for(i=0;i<7;i++){
     	if(i%3 == 0){
     		x = x+5;
     	}
@@ -30,8 +30,9 @@ int main(){
     int a,b,i;
     a=1;
     b=2;
-
-    for(i=0;i<1;i++){
+    a=g(a,b);
+    println(a);
+    for(i=0;i<4;i++){
         a=3;
         while(a>0){
             b++;

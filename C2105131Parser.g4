@@ -21,6 +21,9 @@ import java.util.Stack;
     int paramSize = 0;
     int sub = 0;
     int prev_sub = 0;
+    int endIf = 0;
+    Stack<Integer> global_func_end_label=new Stack<>();
+    Stack<Integer> if_else =new Stack<>();
     Stack<String> stack = new Stack<>();
     // helper to write into parserLogFile
     void writeIntoParserLogFile(String message) {
@@ -281,6 +284,9 @@ func_definition
             writeIntoAsmFile(".CODE");
             code = true;
         }
+
+        label++;
+        global_func_end_label.push(label);
         
         writeIntoAsmFile($ID.getText()+" PROC");
         writeIntoAsmFile("\tPUSH BP");
@@ -410,7 +416,9 @@ func_definition
         // { 
         //     writeIntoAsmFile("\tPOPPINGG AX");
         // }
-
+               
+        int endfL = global_func_end_label.pop();
+        writeIntoAsmFile("\tL"+endfL+":   ;function starts end process here");
         int extra = stack_offset - sub*2  -2; //is there anything except bp and local variable
         while(sub>0)
         { 
@@ -438,6 +446,9 @@ func_definition
     | t=type_specifier 
     ID
     {
+        
+        label++;
+        global_func_end_label.push(label); 
         
         if(!$ID.getText().equalsIgnoreCase("main")){ 
             prev_offset = stack_offset;
@@ -533,7 +544,8 @@ func_definition
         $name_line = $t.text + " "+ $ID.getText() + "()"+ $c.name_line;
 
 
-        
+        int endfL = global_func_end_label.pop();
+        writeIntoAsmFile("\tL"+endfL+":   ;function starts end process here");
         writeIntoAsmFile("\tPOP BP");
 
         while(sub>0)
@@ -1149,9 +1161,15 @@ statement returns [String name_line,boolean retuurn,int lbl]
     }
     LPAREN e=expression RPAREN 
     { 
-        int next = label+2;
+        // int next = label+2;
         //writeIntoAsmFile("\tCMP AX,0"); //if false, jump to next label
-        writeIntoAsmFile("\tJMP L"+next); //jmp to label 8, curr label = 6, next label 7=statement's label
+        label++;
+        int ifTrueL = label;
+        label++;
+        int endL = label;
+        writeIntoAsmFile("\tJMP L"+endL); //jmp to label 8, curr label = 6, next label 7=statement's label -- correction: this needs to jump to else
+        writeIntoAsmFile("L"+ifTrueL+":   ;if true here"); //true will jump here
+
     }
     s=statement
     {
@@ -1165,21 +1183,34 @@ statement returns [String name_line,boolean retuurn,int lbl]
         );
         $name_line = "if(" + $e.name_line + ")" + $s.name_line;
         $retuurn=false;
+        writeIntoAsmFile("L"+endL+":   ;if ended here");
         
     }
     | IF LPAREN e=expression RPAREN 
     { 
-        int next = label+3; //
+        label++;
+        int trueL = label; //
+        label++;
+        int elseL = label;
+
+        
+        if(if_else.empty())
+        { 
+            label++;
+            if_else.push(label);
+            endIf = if_else.peek();
+        }
+        
+        writeIntoAsmFile("\tJMP L"+elseL+" ;jumping to else if,as condn is false");
         //this section is under not equals of expression region. so it should jump to label+2 (label+1 is for equals) 
         //writeIntoAsmFile("\tCMP AX,0"); //if false, jump to next label
-        writeIntoAsmFile("\tJMP L"+next); //jmp to label 8, curr label = 6, next label 7=statement's label        
+        writeIntoAsmFile("L"+trueL+":   ;if true here"); //true will jump here //jmp to label 8, curr label = 6, next label 7=statement's label        
     }
     s1=statement 
     { 
-        //label 7 created in statement
-        newLabel(); //label 8 for else if , redundant ig 
-        next = label+5;
-        writeIntoAsmFile("\tJMP L"+next);
+        label++;
+        writeIntoAsmFile("\tJMP L"+endIf+" ;jumping to end,as one condn is satisfied");
+        writeIntoAsmFile("L"+elseL+":   ;if false here");
     }
     ELSE s2=statement
     {
@@ -1190,10 +1221,14 @@ statement returns [String name_line,boolean retuurn,int lbl]
         );
         $name_line = "if(" + $e.name_line + ")" + $s1.name_line + "else " + $s2.name_line;
         $retuurn=false;
-        newLabel();
-        newLabel();
-        newLabel(); //last label 
+        
         writeIntoAsmFile(";End of if else");
+        if(!if_else.empty())
+        { 
+            writeIntoAsmFile("L"+if_else.peek()+":   ;if ended here"); 
+            if_else.pop();
+        }
+        
     }
 
     |CONTINUE SEMICOLON
@@ -1299,6 +1334,32 @@ statement returns [String name_line,boolean retuurn,int lbl]
         );
         $name_line = "return " + $e.name_line + ";";
         $retuurn=true;
+
+        SymbolInfo sym = Main.st.lookup($e.name_line);
+        if(sym==null)
+        { 
+            
+            writeIntoAsmFile("\tPOP AX;because it is already in stack,setting the ret val");
+            stack_offset -=2;
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$e.name_line+" ;setting ret val from global");
+            }
+            else{
+                
+                //writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
+                if (offset < 0) {
+                    writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "] ;  setting ret val from local");
+                } else {
+                    writeIntoAsmFile("\tMOV AX,[BP-" + offset + "] ;  setting ret val from local");
+                }
+            } 
+        }
+
+        writeIntoAsmFile("\tJMP L"+global_func_end_label.peek()+" ;JUMPING to end of function");
     }
     ;
 
@@ -1481,7 +1542,11 @@ expression
     $type = $l.type;
     }
 
-    | v=variable a=ASSIGNOP l=logic_expression
+    | v=variable 
+    { 
+
+    }
+    a=ASSIGNOP l=logic_expression
     {
         newLabel();
         if(!$l.name_line.equalsIgnoreCase("debug")){ 
@@ -1979,7 +2044,6 @@ simple_expression
     | s=simple_expression ADDOP t=term
     {
         
-        newLabel();
 
     SymbolInfo sym = Main.st.lookup($t.name_line);
         if(sym==null)
