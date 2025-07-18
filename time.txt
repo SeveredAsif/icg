@@ -29,6 +29,8 @@ JUL 10 2025
 
 18 JUL 2025
 1. 10:39 am - 11:23 am - while fixed 
+2. 11:23 am - 12:54 pm - stack copy and in5 check 
+3. 3:00 pm (earlier a little bit as well) - 4:35 pm - in5 problems erase - like return issue and while problem (silly),immediate returning left
 
 
    | WHILE 

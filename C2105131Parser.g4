@@ -410,10 +410,17 @@ func_definition
         // { 
         //     writeIntoAsmFile("\tPOPPINGG AX");
         // }
+
+        int extra = stack_offset - sub*2  -2; //is there anything except bp and local variable
         while(sub>0)
         { 
             writeIntoAsmFile("\tADD SP,2");
             sub -= 2;
+        }
+        while(extra>0)
+        { 
+            writeIntoAsmFile("\tADD SP,2");
+            extra -= 2;            
         }
         writeIntoAsmFile("\tPOP BP");
         
@@ -796,9 +803,19 @@ var_declaration
             for(SymbolInfo item: Main.pendingInsertions)
             { 
                 writeIntoAsmFile("\tSUB SP,2");
+               // writeIntoAsmFile("item for sub: "+item.getName());
                 sub += 2;
 
             }
+
+            // for(int i=2,j=sub;i<=sub;)
+            // { 
+            //     int index = i+2;
+            //     writeIntoAsmFile("\tMOV AX,[BP+"+index+"] ;extracting from out of function");
+            //     writeIntoAsmFile("\tMOV [BP-"+j+"],AX ;storing it to function scope");
+            //     i = i+2;
+            //     j=j-2;
+            // }
         }
         Main.addToSymbolTable($t.text,stack_offset);   
         writeIntoParserLogFile("symbol table scope id : " + Main.st.getCurrentScope().getId()+" ,added" + $dl.name_line);
@@ -1054,7 +1071,7 @@ statement returns [String name_line,boolean retuurn,int lbl]
 
     | FOR 
     { 
-        
+        writeIntoAsmFile("\tPUSH AX   ; if AX has necessary value,i am storing it");
     }
     LPAREN e1=expression_statement 
     { 
@@ -1111,7 +1128,9 @@ statement returns [String name_line,boolean retuurn,int lbl]
         // writeIntoAsmFile(";for end label"); 
 
         writeIntoAsmFile("\tJMP L"+increase+" ;jumping to increase label");
-        writeIntoAsmFile("\tL"+endL+":  ;fir end label");    
+        writeIntoAsmFile("\tL"+endL+":  ;for end label");    
+
+        writeIntoAsmFile("\tPOP AX   ; if AX had necessary value,i am popping it from stack");
     }
 
 
@@ -1236,9 +1255,9 @@ statement returns [String name_line,boolean retuurn,int lbl]
         }
         
         writeIntoAsmFile("\tCMP AX,0");
-        int nextLabel = label+1;
+        //int nextLabel = label+1;
        
-        writeIntoAsmFile("\tJE L"+nextLabel);
+        writeIntoAsmFile("\tJE L"+endL);
         
         writeIntoAsmFile("\tJMP L"+whileLabel+";whilelabel jump");
         writeIntoAsmFile("L"+endL+":  ;will jump here ,if ends");
@@ -1750,7 +1769,7 @@ rel_expression
         { 
             //some constant
             
-            writeIntoAsmFile(Main.st.getAllScopesAsString());
+            writeIntoAsmFile("POP AX   ;popping the result from somewhere else");
             // writeIntoAsmFile("\tPUSH AX");
             // stack_offset+=2;
         }
@@ -1758,7 +1777,7 @@ rel_expression
             int offset = sym.getStackOffset();
             if(offset==-1)
             {
-                writeIntoAsmFile("\t stack offset -1 MOV AX,"+$s.name_line);
+                writeIntoAsmFile("\tMOV AX,"+$s.name_line);
                 // writeIntoAsmFile("\tPUSH AX");
                 // stack_offset+=2;
             }
@@ -1962,17 +1981,47 @@ simple_expression
         
         newLabel();
 
-    
-        $isConst=false;
-        writeIntoAsmFile("\tPOP AX; popping the latest result to AX");
-        stack_offset-=2;
-        writeIntoAsmFile("\tMOV DX,AX");
-
-       SymbolInfo sym = Main.st.lookup($s.name_line);
+    SymbolInfo sym = Main.st.lookup($t.name_line);
         if(sym==null)
         { 
             
-            writeIntoAsmFile("\tPOP AX; popping the second result from stack");
+            writeIntoAsmFile("\tPOP AX; popping the first result from stack,RHS term: "+$t.name_line);
+            stack_offset-=2;
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$t.name_line+"   ;getting the RHS argument in ADDOP from global variable");
+                // writeIntoAsmFile("\tPUSH AX");
+                // stack_offset+=2;
+            }
+            else{
+                //writeIntoAsmFile("sym name: "+sym.getName());
+                if (offset < 0) {
+                    writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "] ;getting the RHS argument in ADDOP from local variable");
+                } else {
+                    writeIntoAsmFile("\tMOV AX,[BP-" + offset + "]; ");
+                }
+                //writeIntoAsmFile("\tMOV AX,[BP-"+offset+"];getting the RHS argument in ADDOP from global variable");
+                // writeIntoAsmFile("\tPUSH AX");
+                // stack_offset+=2;
+            } 
+        }
+ 
+
+
+        $isConst=false;
+        // writeIntoAsmFile("\tPOP AX; popping the latest result to AX");
+        // stack_offset-=2;
+
+        writeIntoAsmFile("\tMOV DX,AX  ;moving the RHS to DX");
+
+        sym = Main.st.lookup($s.name_line);
+        if(sym==null)
+        { 
+            
+            writeIntoAsmFile("\tPOP AX; popping the second result from stack,LHS simple expression: "+$s.name_line);
             stack_offset-=2;
         }
         else {
@@ -1986,11 +2035,11 @@ simple_expression
             else{
                 //writeIntoAsmFile("sym name: "+sym.getName());
                 if (offset < 0) {
-                    writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "] ;getting the LHS argument in ADDOP from global variable");
+                    writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "] ;getting the LHS argument in ADDOP from local variable");
                 } else {
                     writeIntoAsmFile("\tMOV AX,[BP-" + offset + "]; ");
                 }
-                //writeIntoAsmFile("\tMOV AX,[BP-"+offset+"];getting the LHS argument in ADDOP from global variable");
+                //writeIntoAsmFile("\tMOV AX,[BP-"+offset+"];getting the LHS argument in ADDOP from local variable");
                 // writeIntoAsmFile("\tPUSH AX");
                 // stack_offset+=2;
             } 
@@ -2108,9 +2157,9 @@ term
 
                // writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
                 if (offset < 0) {
-                    writeIntoAsmFile("\tMOV [BP+" + (-offset) + "],AX ;");
+                    writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "] ;");
                 } else {
-                    writeIntoAsmFile("\tMOV [BP-" + offset + "],AX ; ");
+                    writeIntoAsmFile("\tMOV AX,[BP-" + offset + "] ; ");
                 }
                 // writeIntoAsmFile("\tPUSH AX");
                 // stack_offset+=2;
@@ -2533,7 +2582,11 @@ factor
                 writeIntoAsmFile("\tINC AX");
                 // writeIntoAsmFile("\tPUSH AX");
                 // stack_offset+=2;
-                writeIntoAsmFile("\tMOV [BP-"+offset+"],AX");
+                    if (offset < 0) {
+                        writeIntoAsmFile("\tMOV [BP+" + (-offset) + "],AX");
+                    } else {
+                        writeIntoAsmFile("\tMOV [BP-" + offset + "],AX");
+                    }
             } 
         } 
         
