@@ -24,4 +24,84 @@ JUL 10 2025
 4. 3:08 pm - 3:22 pm - got some hold of push pop 
 5. 3:39 pm - 5:16 pm - push pop fixed. now function local variable handle to do 
 6. 5:51 pm - 10:50 pm - input 4 done 
-7. 1:30 am - 3:39 am - fixed for loop, made problem in while loop
+7. 1:30 am - 3:39 am - fixed for loop, made problem in while loop (4:00 am)
+
+
+18 JUL 2025
+1. 10:39 am - 11:23 am - while fixed 
+
+
+   | WHILE 
+    { 
+        newLabel();
+        int whileLabel = label;
+        writeIntoAsmFile(";while label : "+whileLabel);
+        // label++;
+        // int decAndcondCheck = label;
+        // writeIntoAsmFile("L"+decAndcondCheck+":   ;will come here to update var and check condn");
+        // label++;
+        // int mainOperation = label;
+        // writeIntoAsmFile("\tJMP L"+mainOperation+"  ;jumping to main cause");
+    }
+    LPAREN e=expression 
+    { 
+        label++;
+        int nextL=label;
+        label++;
+        int endL=label;
+        writeIntoAsmFile("\tCMP AX,0");
+        //int nextLabel = label+1;
+       
+        writeIntoAsmFile("\tJE L"+endL+"  ;jumping to end cause condition false");
+        //writeIntoAsmFile("\tJMP L"+endL+"  ;jumping to end cause condition false");
+        writeIntoAsmFile("L"+nextL+":   ;will come here if true");
+    }
+    RPAREN s=statement
+    {
+        writeIntoParserLogFile(
+            "Line " + $s.stop.getLine() + ": statement : WHILE LPAREN expression RPAREN statement\n\n"
+            + "while(" + $e.name_line + ")" + $s.name_line + "\n"
+        );
+        $name_line = "while(" + $e.name_line + ")" + $s.name_line;
+        $retuurn=false;
+        // writeIntoAsmFile("\tPOP AX");
+        // stack_offset-=2;
+
+        
+        writeIntoAsmFile("\tJMP L"+whileLabel+";whilelabel jump");
+        writeIntoAsmFile("L"+endL+":  ;while ended");
+    }
+   | WHILE 
+    { 
+        newLabel();
+        int whileLabel = label;
+        writeIntoAsmFile(";while label : unary"+whileLabel);
+
+    }
+    LPAREN u=unary_expression 
+    { 
+        label++;
+        int nextL=label;
+        label++;
+        int endL=label;
+
+    }
+    RPAREN s=statement
+    {
+
+        $name_line = "while(" + $u.name_line + ")" + $s.name_line;
+        $retuurn=false;
+        // writeIntoAsmFile("\tPOP AX");
+        // stack_offset-=2;
+
+        writeIntoAsmFile("\tCMP AX,0;in unary");
+        //int nextLabel = label+1;
+       
+        writeIntoAsmFile("\tJE L"+endL+"  ;jumping to end cause condition false");
+        //writeIntoAsmFile("\tJMP L"+endL+"  ;jumping to end cause condition false");
+        writeIntoAsmFile("L"+nextL+":   ;will come here if true");
+        writeIntoAsmFile("\tJMP L"+whileLabel+";whilelabel jump");
+        writeIntoAsmFile("L"+endL+":  ;while ended");
+    }
+ 
+

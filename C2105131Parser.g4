@@ -1190,15 +1190,38 @@ statement returns [String name_line,boolean retuurn,int lbl]
         newLabel();
         int whileLabel = label;
         writeIntoAsmFile(";while label : "+whileLabel);
+        
+        // label++;
+        // int decAndcondCheck = label;
+        // writeIntoAsmFile("L"+decAndcondCheck+":   ;will come here to update var and check condn");
+        // label++;
+        // int mainOperation = label;
+        // writeIntoAsmFile("\tJMP L"+mainOperation+"  ;jumping to main cause");
+    }
+
+  | WHILE 
+    { 
+        newLabel();
+        int whileLabel = label;
+        writeIntoAsmFile(";while label : "+whileLabel);
+        
     }
     LPAREN e=expression 
     { 
+        writeIntoAsmFile(";found the place after AX,0");
         label++;
-        int nextL=label;
+        int stmt_label = label;
         label++;
-        int endL=label;
-        writeIntoAsmFile("\tJMP L"+endL+"  ;jumping to end cause condition false");
-        writeIntoAsmFile("L"+nextL+":   ;will come here if true");
+        int endL = label;
+        if (!($e.name_line.contains("++") || $e.name_line.contains("--"))) { 
+            writeIntoAsmFile("\tJMP L" + endL + " ; will jump to end if reaches here");
+        }
+        else 
+        { 
+            writeIntoAsmFile("\tPUSH AX; pushing the decreased result if dec op");
+        }
+
+        writeIntoAsmFile("L"+stmt_label+":  ;will jump here from compare,if true");
     }
     RPAREN s=statement
     {
@@ -1208,16 +1231,22 @@ statement returns [String name_line,boolean retuurn,int lbl]
         );
         $name_line = "while(" + $e.name_line + ")" + $s.name_line;
         $retuurn=false;
-        // writeIntoAsmFile("\tPOP AX");
-        // stack_offset-=2;
-        // writeIntoAsmFile("\tCMP AX,0");
-        // int nextLabel = label+1;
+        if (($e.name_line.contains("++") || $e.name_line.contains("--"))) { 
+            writeIntoAsmFile("\tPOP AX ;getting the decreased result of AX,if dec op");
+        }
+        
+        writeIntoAsmFile("\tCMP AX,0");
+        int nextLabel = label+1;
        
-        // writeIntoAsmFile("\tJE L"+nextLabel);
+        writeIntoAsmFile("\tJE L"+nextLabel);
         
         writeIntoAsmFile("\tJMP L"+whileLabel+";whilelabel jump");
-        writeIntoAsmFile("L"+endL+":    ;while ended");
+        writeIntoAsmFile("L"+endL+":  ;will jump here ,if ends");
+
     }
+ 
+
+
     | PRINTLN LPAREN ID RPAREN SEMICOLON
     {
         writeIntoParserLogFile(
