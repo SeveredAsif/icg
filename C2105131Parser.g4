@@ -1668,11 +1668,21 @@ expression
                 { 
                     if(sym2.getIDType().equals("array"))
                     { 
-                        writeIntoAsmFile("\t ;popping global array's index from stack, for RHS - no need,,already in AX");
+                        
+                        if(fullName.contains("++") || fullName.contains("--"))
+                        { 
+                            writeIntoAsmFile("\t;doing nothing ,AX already has answer");
+                            writeIntoAsmFile(asmLine+"AX  ;moving AX to LHS");
+                        }
+                        else
+                        { 
+                       writeIntoAsmFile("\tPOP AX   ;popping global array's index from stack, for RHS");
                         writeIntoAsmFile("\tMOV BX,AX  ;taking the index to BX reg");
                         writeIntoAsmFile("\tMOV AX,"+sym2.getName()+"[BX]  ;moving RHS's array val to AX");
                         writeIntoAsmFile(asmLine+"AX  ;moving AX to LHS");
                         //writeIntoAsmFile("\tPUSH BX   ;pushing BX,the global array index for using in assignop");
+                        }
+ 
                     }
                     else
                     { 
