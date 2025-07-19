@@ -1664,12 +1664,13 @@ expression
         // }
 
          fullName = $l.name_line;
+         //writeIntoAsmFile("fullname: "+$l.name_line);
          actualName = fullName.contains("[") ? fullName.substring(0, fullName.indexOf("[")): fullName;
         SymbolInfo sym2 = Main.st.lookup(actualName);
 
-        if(sym2==null)
+        if(sym2==null || fullName.contains("++") || fullName.contains("--") )
         { 
-            writeIntoAsmFile("\tPOP AX;getting assignop's RHS val fromm stack,as logical expr is pushed to stack,the log expr:"+actualName);
+            writeIntoAsmFile("\tPOP AX;getting assignop's RHS val fromm stack,as logical expr is pushed to stack,the log expr:"+fullName);
             writeIntoAsmFile(asmLine+"AX");
         }
 
@@ -1684,6 +1685,7 @@ expression
                         writeIntoAsmFile("\tMOV BX,AX  ;taking the index to BX reg");
                         writeIntoAsmFile("\tMOV AX,"+sym2.getName()+"[BX]  ;moving RHS's array val to AX");
                         writeIntoAsmFile(asmLine+"AX  ;moving AX to LHS");
+                        //writeIntoAsmFile("\tPUSH BX   ;pushing BX,the global array index for using in assignop");
                     }
                     else
                     { 
@@ -1704,6 +1706,7 @@ expression
                         if(sym2.getIDType().equals("array"))
                         { 
                             writeIntoAsmFile("\tPOP AX   ;popping local array's index from stack, for RHS");
+                            writeIntoAsmFile("\tMOV CX,AX  ;storing the array's index for others to use");
                             int baseAddr = stck_off2;
                             //SI = baseaddr-index*2 , then neg SI then BP+SI
                             writeIntoAsmFile("\tSHL AX,1   ;doing index*2");
@@ -1712,6 +1715,7 @@ expression
                             writeIntoAsmFile("\tMOV SI,AX   ;taking the value to SI");
                             writeIntoAsmFile("\tMOV AX,[BP+SI]   ;moving local arrays value to AX");
                             writeIntoAsmFile(asmLine+"AX   ;moving AX to LHS");
+                            writeIntoAsmFile("\tPUSH CX  ;pushing the array index back to stack");
 
                         }
                         else
@@ -2766,8 +2770,10 @@ factor
         
         newLabel();
         //push the result to stack AX 
+        String fullName = $v.name_line;
+        String actualName = fullName.contains("[") ? fullName.substring(0, fullName.indexOf("[")): fullName;
 
-        SymbolInfo sym = Main.st.lookup($v.name_line);
+        SymbolInfo sym = Main.st.lookup(actualName);
         if(sym==null)
         { 
             //some constant
@@ -2777,32 +2783,62 @@ factor
         }
         else {
             int offset = sym.getStackOffset();
-            if(offset==-1)
+            if(offset==-1) //global
             {
-                writeIntoAsmFile("\tMOV AX,"+$v.name_line);
-                writeIntoAsmFile("\tINC AX");
-                // writeIntoAsmFile("\tPUSH AX");
-                // stack_offset+=2;
-                writeIntoAsmFile("\tMOV "+$v.name_line+"AX");
+                
+                if(sym.getIDType().equals("array"))
+                { 
+                    //get the global array index
+                    writeIntoAsmFile("\tPOP AX  ;want to get the array index for incop");
+                    writeIntoAsmFile("\tMOV BX,AX  ;moving the index into BX");
+                    writeIntoAsmFile("\tMOV AX,"+sym.getName()+"[BX]  ;getting the global array value to increase");
+                    writeIntoAsmFile("\tPUSH AX  ;pushing back the global array's value into stack for assignop to use");
+                    writeIntoAsmFile("\tINC AX  ;increasing the array value");
+                    writeIntoAsmFile("\tMOV " + sym.getName()+"[BX],AX  ;moving back the increased value to array[BX]");
+                    
+                }
+                else 
+                { 
+                    writeIntoAsmFile("\tMOV AX,"+$v.name_line);
+                    //writeIntoAsmFile("\tPUSH AX  ;pushing back the variable's value into stack for assignop to use");
+                    writeIntoAsmFile("\tINC AX");
+                    // writeIntoAsmFile("\tPUSH AX");
+                    // stack_offset+=2;
+                    writeIntoAsmFile("\tMOV "+$v.name_line+"AX");
+                }
+
             }
             else
             {
                 //writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
-                
+                int baseAddr = offset;
+                if(sym.getIDType().equals("array")){ 
+                    writeIntoAsmFile("\tPOP AX  ;want to get the array index for incop");
+                    writeIntoAsmFile("\tSHL AX,1 ; doing index=index*2 in incop");
+                    writeIntoAsmFile("\tSUB AX,"+baseAddr+"  ;doing index*2-offset");
+                    writeIntoAsmFile("\tMOV SI,AX   ;taking index to SI");
+                    writeIntoAsmFile("\tMOV AX,[BP+SI]  ;moving local array element to AX for increase");
+                    writeIntoAsmFile("\tINC AX ;doing inc op for local array");
+                    writeIntoAsmFile("\tMOV [BP+SI],AX  ;moving back the value of increased AX into local array");
+                }
+                else
+                { 
                     if (offset < 0) {
                         writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "]");
                     } else {
                         writeIntoAsmFile("\tMOV AX,[BP-" + offset + "]");
                     }
-
-                writeIntoAsmFile("\tINC AX");
-                // writeIntoAsmFile("\tPUSH AX");
-                // stack_offset+=2;
+                    writeIntoAsmFile("\tINC AX");
+                    // writeIntoAsmFile("\tPUSH AX");
+                    // stack_offset+=2;
                     if (offset < 0) {
                         writeIntoAsmFile("\tMOV [BP+" + (-offset) + "],AX");
                     } else {
                         writeIntoAsmFile("\tMOV [BP-" + offset + "],AX");
                     }
+                }
+
+
             } 
         } 
         
