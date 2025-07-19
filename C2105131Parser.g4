@@ -1122,7 +1122,7 @@ statement returns [String name_line,boolean retuurn,int lbl]
         writeIntoAsmFile(";after check label,if true, will come here jumping");
         label++; //elseLabel
         int endL = label;
-        writeIntoAsmFile("\tPOP AX");
+        writeIntoAsmFile(";no need to pop, i set the ax value before");
         stack_offset-=2;
         writeIntoAsmFile("\tCMP AX,0");
         writeIntoAsmFile("\tJE L"+ endL + "     ;jumping to else, as AX is 0");
@@ -1290,20 +1290,14 @@ statement returns [String name_line,boolean retuurn,int lbl]
         writeIntoAsmFile(";found the place after AX,0");
         label++;
         int stmt_label = label;
+        writeIntoAsmFile("L"+stmt_label+":  ;will jump here from compare,if true");
         label++;
         int endL = label;
-        writeIntoAsmFile("\tPOP AX   ;popping the AX that was pushed in rel_op,for false");
-        stack_offset -=2;
-        if (!($e.name_line.contains("++") || $e.name_line.contains("--"))) { 
-            writeIntoAsmFile("\tJMP L" + endL + " ; will jump to end if reaches here");
-        }
-        else 
-        { 
-            writeIntoAsmFile("\tPUSH AX; pushing the decreased result if dec op");
-        }
+        writeIntoAsmFile("\t  ;AX has the necessary values");
 
-        writeIntoAsmFile("L"+stmt_label+":  ;will jump here from compare,if true");
-        writeIntoAsmFile("\tPOP AX   ;popping the AX that was pushed in rel_op,for true");
+        writeIntoAsmFile("CMP AX,0");
+        writeIntoAsmFile("\tJE L" + endL + " ; will jump to end if AX=0");
+
     }
     RPAREN s=statement
     {
@@ -1313,14 +1307,7 @@ statement returns [String name_line,boolean retuurn,int lbl]
         );
         $name_line = "while(" + $e.name_line + ")" + $s.name_line;
         $retuurn=false;
-        if (($e.name_line.contains("++") || $e.name_line.contains("--"))) { 
-            writeIntoAsmFile("\tPOP AX ;getting the decreased result of AX,if dec op");
-        }
         
-        writeIntoAsmFile("\tCMP AX,0");
-        //int nextLabel = label+1;
-       
-        writeIntoAsmFile("\tJE L"+endL);
         
         writeIntoAsmFile("\tJMP L"+whileLabel+";whilelabel jump");
         writeIntoAsmFile("L"+endL+":  ;will jump here ,if ends");
@@ -1668,7 +1655,7 @@ expression
          actualName = fullName.contains("[") ? fullName.substring(0, fullName.indexOf("[")): fullName;
         SymbolInfo sym2 = Main.st.lookup(actualName);
 
-        if(sym2==null || fullName.contains("++") || fullName.contains("--") )
+        if(sym2==null )
         { 
             writeIntoAsmFile("\tPOP AX;getting assignop's RHS val fromm stack,as logical expr is pushed to stack,the log expr:"+fullName);
             writeIntoAsmFile(asmLine+"AX");
@@ -1681,7 +1668,7 @@ expression
                 { 
                     if(sym2.getIDType().equals("array"))
                     { 
-                        writeIntoAsmFile("\tPOP AX   ;popping global array's index from stack, for RHS");
+                        writeIntoAsmFile("\t ;popping global array's index from stack, for RHS - no need,,already in AX");
                         writeIntoAsmFile("\tMOV BX,AX  ;taking the index to BX reg");
                         writeIntoAsmFile("\tMOV AX,"+sym2.getName()+"[BX]  ;moving RHS's array val to AX");
                         writeIntoAsmFile(asmLine+"AX  ;moving AX to LHS");
@@ -2092,15 +2079,15 @@ rel_expression
             newLabel();
             //AX=1
             writeIntoAsmFile("\tMOV AX,1");
-            writeIntoAsmFile("\tPUSH AX");
+            //writeIntoAsmFile("\tPUSH AX");
             //jump to L12
             next = label+2;
             writeIntoAsmFile("\tJMP L"+next);
             //L11
             newLabel();
             writeIntoAsmFile("\tMOV AX,0");
-            writeIntoAsmFile("\tPUSH AX");
-            stack_offset+=2;
+            //writeIntoAsmFile("\tPUSH AX");
+            //stack_offset+=2;
         }
         if($RELOP.getText().equals(">"))
         { 
@@ -2115,15 +2102,15 @@ rel_expression
             newLabel();
             //AX=1
             writeIntoAsmFile("\tMOV AX,1");
-            writeIntoAsmFile("\tPUSH AX");
+            //writeIntoAsmFile("\tPUSH AX");
             //jump to L12
             next = label+2;
             writeIntoAsmFile("\tJMP L"+next);
             //L11
             newLabel();
             writeIntoAsmFile("\tMOV AX,0");
-             writeIntoAsmFile("\tPUSH AX");
-            stack_offset+=2;
+            // writeIntoAsmFile("\tPUSH AX");
+            //stack_offset+=2;
         }
         else if($RELOP.getText().equals("!="))
         { 
@@ -2778,7 +2765,7 @@ factor
         { 
             //some constant
             writeIntoAsmFile("\tMOV AX,"+$v.name_line);
-            writeIntoAsmFile("\tPUSH AX");
+            writeIntoAsmFile("\tPUSH AX ;change it"); //change
             stack_offset+=2;
         }
         else {
@@ -2795,14 +2782,15 @@ factor
                     writeIntoAsmFile("\tPUSH AX  ;pushing back the global array's value into stack for assignop to use");
                     writeIntoAsmFile("\tINC AX  ;increasing the array value");
                     writeIntoAsmFile("\tMOV " + sym.getName()+"[BX],AX  ;moving back the increased value to array[BX]");
+                    writeIntoAsmFile("\tPOP AX  ;getting back the global array's value into AX for assignop to use");
                     
                 }
                 else 
                 { 
                     writeIntoAsmFile("\tMOV AX,"+$v.name_line);
-                    //writeIntoAsmFile("\tPUSH AX  ;pushing back the variable's value into stack for assignop to use");
+                    writeIntoAsmFile("\tPUSH AX  ;pushing back the variable's prev value into stack ");
                     writeIntoAsmFile("\tINC AX");
-                    // writeIntoAsmFile("\tPUSH AX");
+                    writeIntoAsmFile("\tPOP AX  ;getting the value back");
                     // stack_offset+=2;
                     writeIntoAsmFile("\tMOV "+$v.name_line+"AX");
                 }
@@ -2867,10 +2855,12 @@ factor
             if(offset==-1)
             {
                 writeIntoAsmFile("\tMOV AX,"+$v.name_line);
+                writeIntoAsmFile("\tPUSH AX   ;pushing the previous value before decreasing");
+                stack_offset+=2;
                 writeIntoAsmFile("\tDEC AX");
                 writeIntoAsmFile("\tMOV "+$v.name_line+"AX");
-                // writeIntoAsmFile("\tPUSH AX");
-                // stack_offset+=2;
+                writeIntoAsmFile("\tPOP AX ;popping back the previous AX here in decop");
+                stack_offset-=2;
             }
             else
             {
@@ -2881,7 +2871,9 @@ factor
                 } else {
                     writeIntoAsmFile("\tMOV AX,[BP-" + offset + "]");
                 }
-
+               
+                writeIntoAsmFile("\tPUSH AX   ;pushing the previous value before decreasing");
+                stack_offset+=2;
                 writeIntoAsmFile("\tDEC AX");
                // writeIntoAsmFile("\tMOV [BP-"+offset+"],AX");
                 if (offset < 0) {
@@ -2890,8 +2882,8 @@ factor
                     writeIntoAsmFile("\tMOV [BP-" + offset + "],AX");
                 }
 
-                // writeIntoAsmFile("\tPUSH AX");
-                // stack_offset+=2;
+                writeIntoAsmFile("\tPOP AX   ;getting back the previous value");
+                stack_offset-=2;
             } 
         }         
         writeIntoParserLogFile(
