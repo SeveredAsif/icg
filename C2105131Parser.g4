@@ -432,11 +432,11 @@ func_definition
             writeIntoAsmFile("\tADD SP,2");
             sub -= 2;
         }
-        while(extra>0)
-        { 
-            writeIntoAsmFile("\tADD SP,2");
-            extra -= 2;            
-        }
+        // while(extra>0)
+        // { 
+        //     writeIntoAsmFile("\tADD SP,2");
+        //     extra -= 2;            
+        // }
         writeIntoAsmFile("\tPOP BP");
         
         writeIntoAsmFile("\tRET "+(paramSize)*2);
@@ -1354,8 +1354,9 @@ statement returns [String name_line,boolean retuurn,int lbl]
         if(sym==null)
         { 
             
-            writeIntoAsmFile("\tPOP AX;because it is already in stack,setting the ret val");
-            stack_offset -=2;
+            //writeIntoAsmFile("\tPOP AX;because it is already in stack,setting the ret val");
+            //stack_offset -=2;
+            writeIntoAsmFile("\t;because it is already in AX,no need of setting the ret val");
         }
         else {
             int offset = sym.getStackOffset();
@@ -1622,7 +1623,7 @@ expression
     }
     a=ASSIGNOP l=logic_expression
     {
-        
+               newLabel();
         if(!$l.name_line.equalsIgnoreCase("debug")){ 
                 writeIntoParserLogFile(
                 "Line "
@@ -1657,7 +1658,7 @@ expression
 
         if(sym2==null )
         { 
-            writeIntoAsmFile("\tPOP AX;getting assignop's RHS val fromm stack,as logical expr is pushed to stack,the log expr:"+fullName);
+            writeIntoAsmFile("\t;hopefully AX has the value,the log expr:"+fullName);
             writeIntoAsmFile(asmLine+"AX");
         }
 
@@ -1831,7 +1832,8 @@ logic_expression
         if(sym==null)
         { 
             //some constant
-            writeIntoAsmFile("\tPOP AX ;getting res from stack"+$r.name_line);
+            //writeIntoAsmFile("\tPOP AX ;getting res from stack"+$r.name_line);
+            writeIntoAsmFile("\t;getting res from AX"+$r.name_line);
             // writeIntoAsmFile("\tPUSH AX");
             // stack_offset += 2;
 
@@ -1868,7 +1870,8 @@ logic_expression
         { 
             
             //writeIntoAsmFile("\tMOV AX,"+$re.name_line); //this is constant,this should be redundant
-            writeIntoAsmFile("\tPOP AX;getting from stack"); //getting the stored value
+            //writeIntoAsmFile("\tPOP AX;getting from stack"); //getting the stored value
+            writeIntoAsmFile("\t;assuming already from AX");
             stack_offset-=2;
         }
         else {
@@ -1983,7 +1986,8 @@ rel_expression
         { 
             //some constant
             
-            writeIntoAsmFile("POP AX   ;popping the result from somewhere else");
+            //writeIntoAsmFile("POP AX   ;popping the result from somewhere else");
+            writeIntoAsmFile(";hoping that AX has necessary values");
             // writeIntoAsmFile("\tPUSH AX");
             // stack_offset+=2;
         }
@@ -2018,7 +2022,8 @@ rel_expression
         if(sym==null)
         { 
             
-            writeIntoAsmFile("\tPOP AX;because it is already in stack");
+            //writeIntoAsmFile("\tPOP AX;because it is already in stack");
+            writeIntoAsmFile("\t;because it is already in AX,no need to pop");
             // writeIntoAsmFile("\tPUSH AX");
             // stack_offset+=2;
         }
@@ -2190,16 +2195,50 @@ simple_expression
         $name_line=$t.name_line;
         $type = $t.type;
     }
-    | s=simple_expression ADDOP t=term
-    {
-        
-
-    SymbolInfo sym = Main.st.lookup($t.name_line);
+    | s=simple_expression 
+    { 
+        SymbolInfo sym = Main.st.lookup($s.name_line);
         if(sym==null)
         { 
             
-            writeIntoAsmFile("\tPOP AX; popping the first result from stack,RHS term: "+$t.name_line);
+            //writeIntoAsmFile("\tPOP AX; popping the second result from stack,LHS simple expression: "+$s.name_line);
+            writeIntoAsmFile("\t; the second result is in DX "+$s.name_line);
             stack_offset-=2;
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$s.name_line+";getting the LHS argument in ADDOP from global variable");
+                // writeIntoAsmFile("\tPUSH AX");
+                // stack_offset+=2;
+            }
+            else{
+                //writeIntoAsmFile("sym name: "+sym.getName());
+                if (offset < 0) {
+                    writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "] ;getting the LHS argument in ADDOP from local variable");
+                } else {
+                    writeIntoAsmFile("\tMOV AX,[BP-" + offset + "]; ");
+                }
+                //writeIntoAsmFile("\tMOV AX,[BP-"+offset+"];getting the LHS argument in ADDOP from local variable");
+                // writeIntoAsmFile("\tPUSH AX");
+                // stack_offset+=2;
+            } 
+        }   
+        writeIntoAsmFile("\tPUSH DX  ;pushing DX for later use");     
+        writeIntoAsmFile("\tMOV DX,AX  ;moving the LHS to DX");
+    }
+    ADDOP t=term
+    {
+        
+
+     sym = Main.st.lookup($t.name_line);
+        if(sym==null)
+        { 
+            
+            //writeIntoAsmFile("\tPOP AX; popping the first result from stack,RHS term: "+$t.name_line);
+            //stack_offset-=2;
+            writeIntoAsmFile("\t; hoping that the first result is in AX,RHS term: "+$t.name_line);
         }
         else {
             int offset = sym.getStackOffset();
@@ -2228,35 +2267,9 @@ simple_expression
         // writeIntoAsmFile("\tPOP AX; popping the latest result to AX");
         // stack_offset-=2;
 
-        writeIntoAsmFile("\tMOV DX,AX  ;moving the RHS to DX");
+        
 
-        sym = Main.st.lookup($s.name_line);
-        if(sym==null)
-        { 
-            
-            writeIntoAsmFile("\tPOP AX; popping the second result from stack,LHS simple expression: "+$s.name_line);
-            stack_offset-=2;
-        }
-        else {
-            int offset = sym.getStackOffset();
-            if(offset==-1)
-            {
-                writeIntoAsmFile("\tMOV AX,"+$s.name_line+";getting the LHS argument in ADDOP from global variable");
-                // writeIntoAsmFile("\tPUSH AX");
-                // stack_offset+=2;
-            }
-            else{
-                //writeIntoAsmFile("sym name: "+sym.getName());
-                if (offset < 0) {
-                    writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "] ;getting the LHS argument in ADDOP from local variable");
-                } else {
-                    writeIntoAsmFile("\tMOV AX,[BP-" + offset + "]; ");
-                }
-                //writeIntoAsmFile("\tMOV AX,[BP-"+offset+"];getting the LHS argument in ADDOP from local variable");
-                // writeIntoAsmFile("\tPUSH AX");
-                // stack_offset+=2;
-            } 
-        }
+
  
         writeIntoParserLogFile(
         "Line "
@@ -2267,14 +2280,17 @@ simple_expression
         // stack_offset -= 2;
         if($ADDOP.getText().equals("+"))
         { 
-            writeIntoAsmFile("\tADD AX,DX;Adding in ADDOP");
+            writeIntoAsmFile("\tADD DX,AX;Adding in ADDOP");
+            writeIntoAsmFile("\tMOV AX,DX ;moving back to AX");
         }
         else 
         { 
-            writeIntoAsmFile("\tSUB AX,DX;subtracting in ADDOP");
+            writeIntoAsmFile("\tSUB DX,AX;subtracting in ADDOP");
+            writeIntoAsmFile("\tMOV AX,DX ;moving back to AX");
         }
         
-        writeIntoAsmFile("\tPUSH AX;pushing the result of addop(simple expression) to stack");
+        //writeIntoAsmFile("\tPUSH AX;pushing the result of addop(simple expression) to stack");
+        writeIntoAsmFile("\tPOP DX ;popping the prev DX val");
     }
 
     |s=simple_expression ADDOP ASSIGNOP
@@ -2297,6 +2313,7 @@ term
     returns [String name_line,String type,boolean isConst]
     : u=unary_expression
     {
+        
         $isConst = true;
         if(!$u.name_line.equalsIgnoreCase("debug")){ 
             writeIntoParserLogFile(
@@ -2308,15 +2325,55 @@ term
         $name_line=$u.name_line;
         $type=$u.type;
     }
-    | t=term MULOP u=unary_expression
-    {
-        newLabel();
-        $isConst = false;
-        SymbolInfo sym = Main.st.lookup($u.name_line);
+    | t=term 
+    { 
+            SymbolInfo  sym = Main.st.lookup($t.name_line);
+                
         if(sym==null)
         { 
             
-            writeIntoAsmFile("\tPOP AX; extracting from stack");
+            //writeIntoAsmFile("\tPOP AX;getting from stack, as it is not in SymbolTable");
+            writeIntoAsmFile("\t;hoping that result is in AX");
+            stack_offset-=2;
+            // writeIntoAsmFile("\tPUSH AX");
+            // stack_offset+=2;
+        }
+        else {
+            int offset = sym.getStackOffset();
+            if(offset==-1)
+            {
+                writeIntoAsmFile("\tMOV AX,"+$t.name_line);
+                // writeIntoAsmFile("\tPUSH AX");
+                // stack_offset+=2;
+            }
+            else{
+
+               // writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
+                if (offset < 0) {
+                    writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "] ;");
+                } else {
+                    writeIntoAsmFile("\tMOV AX,[BP-" + offset + "] ; ");
+                }
+                // writeIntoAsmFile("\tPUSH AX");
+                // stack_offset+=2;
+            } 
+        } 
+
+         writeIntoAsmFile("\tPUSH CX ;for later use");
+          writeIntoAsmFile("\tMOV CX,AX  ;moving the necessary value of AX to CX");
+    }
+    MULOP u=unary_expression
+    {
+        newLabel();
+        $isConst = false;
+      
+ 
+         sym = Main.st.lookup($u.name_line);
+        if(sym==null)
+        { 
+            
+            //writeIntoAsmFile("\tPOP AX; extracting from stack");
+            writeIntoAsmFile("\t; neccesary value is in AX");
             stack_offset-=2;
             // writeIntoAsmFile("\tPUSH AX");
             // stack_offset+=2;
@@ -2345,55 +2402,40 @@ term
 
 
         
-        writeIntoAsmFile("\tMOV CX,AX");
+ 
         
 
-        sym = Main.st.lookup($t.name_line);
-                
-        if(sym==null)
+ 
+        if($MULOP.getText().equals("*"))
         { 
-            
-            writeIntoAsmFile("\tPOP AX;getting from stack, as it is not in SymbolTable");
-            stack_offset-=2;
-            // writeIntoAsmFile("\tPUSH AX");
-            // stack_offset+=2;
+            writeIntoAsmFile("\tPUSH DX  ;storing DX,as CWD changes it");
         }
-        else {
-            int offset = sym.getStackOffset();
-            if(offset==-1)
-            {
-                writeIntoAsmFile("\tMOV AX,"+$t.name_line);
-                // writeIntoAsmFile("\tPUSH AX");
-                // stack_offset+=2;
-            }
-            else{
 
-               // writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
-                if (offset < 0) {
-                    writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "] ;");
-                } else {
-                    writeIntoAsmFile("\tMOV AX,[BP-" + offset + "] ; ");
-                }
-                // writeIntoAsmFile("\tPUSH AX");
-                // stack_offset+=2;
-            } 
-        } 
-
+        
         writeIntoAsmFile("\tCWD");
+        
 
         if($MULOP.getText().equals("*"))
         { 
             writeIntoAsmFile("\tMUL CX");
-            writeIntoAsmFile("\tPUSH AX");
+            //writeIntoAsmFile("\tPUSH AX");
+            //writeIntoAsmFile("\tMOV AX,CX ;moving the result of mul into AX");
+            writeIntoAsmFile("\t;the result of mul is stored into AX");
+            writeIntoAsmFile("\tPOP DX  ;restoring DX value");
         }
         else{ 
+            writeIntoAsmFile("\tPUSH CX");
+            writeIntoAsmFile("\tPUSH AX");
+            writeIntoAsmFile("\tPOP CX");
+            writeIntoAsmFile("\tPOP AX");
             writeIntoAsmFile("\tDIV CX");
             //writeIntoAsmFile("\tPUSH CX"); //may have to remove it 
         }
 
         if($MULOP.getText().equals("%"))
         { 
-            writeIntoAsmFile("\tPUSH DX");
+            //writeIntoAsmFile("\tPUSH DX");
+            writeIntoAsmFile("\tMOV AX,DX ;moving the result of div % into AX");
             // writeIntoAsmFile("\tPOP AX"); //may have to remove it, handled in other place 
             // stack_offset-=2;
         }
@@ -2447,6 +2489,8 @@ term
 
     writeIntoParserLogFile($t.name_line+""+$MULOP.getText()+"" +$u.name_line +"\n");     
         $name_line=$t.name_line+""+$MULOP.getText()+"" +$u.name_line;
+
+        writeIntoAsmFile("\tPOP CX; popping CX to prev val");
     }
     ;
 
@@ -2539,7 +2583,8 @@ factor
     { 
         newLabel();
         writeIntoAsmFile("\tCALL "+$ID.getText());    
-        writeIntoAsmFile("\tPUSH AX;pushing the return value of function to stack");    
+        //writeIntoAsmFile("\tPUSH AX;pushing the return value of function to stack");  
+        writeIntoAsmFile("\t; return value of function is in AX");    
         writeIntoParserLogFile(
             "Line " + $RPAREN.getLine() + ": factor : ID LPAREN RPAREN\n"
         );   
@@ -2640,7 +2685,8 @@ factor
                     }
                 }
                 writeIntoAsmFile("\tCALL "+$ID.getText());
-                writeIntoAsmFile("\tPUSH AX;pushing the return value of function to stack");
+                //writeIntoAsmFile("\tPUSH AX;pushing the return value of function to stack");
+                writeIntoAsmFile("\t; return value of function is in AX");    
             }
         if (funcSymbol == null) {
             Main.syntaxErrorCount++;
@@ -2740,7 +2786,7 @@ factor
     {
         newLabel();
         writeIntoAsmFile("\tMOV AX,"+$CONST_INT.getText()+"  ;getting this int into AX");
-        writeIntoAsmFile("\tPUSH AX    ;pushing const_int for later use");
+        //writeIntoAsmFile("\tPUSH AX    ;pushing const_int for later use");
         stack_offset += 2;
         writeIntoParserLogFile(
         "Line "
@@ -2753,7 +2799,7 @@ factor
     {
         newLabel();
         writeIntoAsmFile("\tMOV AX,"+$CONST_FLOAT.getText());
-        writeIntoAsmFile("\tPUSH AX");
+        //writeIntoAsmFile("\tPUSH AX");
         stack_offset += 2;
         writeIntoParserLogFile(
         "Line "
@@ -2786,7 +2832,8 @@ factor
                 if(sym.getIDType().equals("array"))
                 { 
                     //get the global array index
-                    writeIntoAsmFile("\tPOP AX  ;want to get the array index for incop");
+                    //writeIntoAsmFile("\tPOP AX  ;want to get the array index for incop");
+                     writeIntoAsmFile("\t ;assuming the array index for incop is already in AX");
                     writeIntoAsmFile("\tMOV BX,AX  ;moving the index into BX");
                     writeIntoAsmFile("\tMOV AX,"+sym.getName()+"[BX]  ;getting the global array value to increase");
                     writeIntoAsmFile("\tPUSH AX  ;pushing back the global array's value into stack for assignop to use");
@@ -2802,7 +2849,7 @@ factor
                     writeIntoAsmFile("\tINC AX");
                     writeIntoAsmFile("\tPOP AX  ;getting the value back");
                     // stack_offset+=2;
-                    writeIntoAsmFile("\tMOV "+$v.name_line+"AX");
+                    writeIntoAsmFile("\tMOV "+$v.name_line+",AX");
                 }
 
             }
@@ -2811,13 +2858,16 @@ factor
                 //writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
                 int baseAddr = offset;
                 if(sym.getIDType().equals("array")){ 
-                    writeIntoAsmFile("\tPOP AX  ;want to get the array index for incop");
+                   // writeIntoAsmFile("\tPOP AX  ;want to get the array index for incop in AX");
+                    writeIntoAsmFile("\t ;hoping to get the array index for incop in AX");
                     writeIntoAsmFile("\tSHL AX,1 ; doing index=index*2 in incop");
                     writeIntoAsmFile("\tSUB AX,"+baseAddr+"  ;doing index*2-offset");
                     writeIntoAsmFile("\tMOV SI,AX   ;taking index to SI");
                     writeIntoAsmFile("\tMOV AX,[BP+SI]  ;moving local array element to AX for increase");
+                    writeIntoAsmFile("\tPUSH AX ;pushing current array value to use later");
                     writeIntoAsmFile("\tINC AX ;doing inc op for local array");
                     writeIntoAsmFile("\tMOV [BP+SI],AX  ;moving back the value of increased AX into local array");
+                    writeIntoAsmFile("\tPOP AX ;popped current array value for using");
                 }
                 else
                 { 
@@ -2826,6 +2876,7 @@ factor
                     } else {
                         writeIntoAsmFile("\tMOV AX,[BP-" + offset + "]");
                     }
+                    writeIntoAsmFile("\tPUSH AX ;as prev value might be used by others");
                     writeIntoAsmFile("\tINC AX");
                     // writeIntoAsmFile("\tPUSH AX");
                     // stack_offset+=2;
@@ -2834,6 +2885,7 @@ factor
                     } else {
                         writeIntoAsmFile("\tMOV [BP-" + offset + "],AX");
                     }
+                    writeIntoAsmFile("\tPOP AX ;popping back the value");
                 }
 
 
