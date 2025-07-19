@@ -124,6 +124,13 @@ import java.util.Stack;
             System.err.println("Parser log error: " + e.getMessage());
         }        
     }
+    void addToPendingList(String name,String IDType,String size){
+        try {
+            Main.addToPending(name,IDType,size);
+        } catch (Exception e) {
+            System.err.println("Parser log error: " + e.getMessage());
+        }        
+    }
     void addToPendingList(String name){
         try {
             Main.addToPending(name);
@@ -804,18 +811,36 @@ var_declaration
         { 
             for(SymbolInfo item: Main.pendingInsertions)
             { 
-                writeIntoAsmFile("\t" + item.getName() + " DW 1 DUP(0000H)" );
+                if(item.getIDType().equals("array"))
+                { 
+                    writeIntoAsmFile("\t" + item.getName() + " DW "+ item.getSize()+" DUP(0000H) " );
+                }
+                else
+                { 
+                    writeIntoAsmFile("\t" + item.getName() + " DW 1 DUP(0000H) ");
+                }
+                
             }
         }
         else
         {
             
-            stack_offset += 2;
+            
             //writeIntoAsmFile("stack offset made:"+stack_offset);
             for(SymbolInfo item: Main.pendingInsertions)
             { 
-                writeIntoAsmFile("\tSUB SP,2");
-               // writeIntoAsmFile("item for sub: "+item.getName());
+                
+                if (item.getIDType().equals("array")) { 
+                    int size = Integer.parseInt(item.getSize()) * 2;
+                    writeIntoAsmFile("\tSUB SP," + size);
+                    stack_offset += size*2;
+                }
+                else
+                { 
+                    writeIntoAsmFile("\tSUB SP,2");
+                    stack_offset += 2;
+                }
+               //writeIntoAsmFile("item for sub: "+item.getName());
                 sub += 2;
 
             }
@@ -830,7 +855,7 @@ var_declaration
             // }
         }
         Main.addToSymbolTable($t.text,stack_offset);   
-        writeIntoParserLogFile("symbol table scope id : " + Main.st.getCurrentScope().getId()+" ,added" + $dl.name_line);
+        writeIntoParserLogFile("symbol table scope id : " + Main.st.getCurrentScope().getId()+" ,added" + $dl.name_line + " stack_off: "+stack_offset);
       }
     | t=type_specifier de=declaration_list_err sm=SEMICOLON
       {
@@ -928,7 +953,7 @@ returns [String name_line]
             + $ID.getLine() + ": declaration_list : declaration_list COMMA ID LTHIRD CONST_INT RTHIRD\n\n" + $dec2.name_line+","+$ID.getText()+"["+$CONST_INT.getText() + "]\n"
         );  
         $name_line = $dec2.name_line+","+$ID.getText()+"["+$CONST_INT.getText() + "]";
-        addToPendingList($ID.getText(),"array"); 
+        addToPendingList($ID.getText(),"array",$CONST_INT.getText()); 
         //insertIntoSymbolTable($ID.getText(),"ID","array"); 
     }
     |dec3=declaration_list ADDOP ID
@@ -990,7 +1015,7 @@ returns [String name_line]
             + $ID.getLine() + ": declaration_list : ID LTHIRD CONST_INT RTHIRD\n\n" + $ID.getText() + "[" + $CONST_INT.getText()+ "]\n"
         );  
         $name_line=$ID.getText() + "[" + $CONST_INT.getText()+ "]";
-        addToPendingList($ID.getText(),"array");          
+        addToPendingList($ID.getText(),"array",$CONST_INT.getText());          
     }
     ;
 
@@ -1488,6 +1513,8 @@ variable
     }
     | ID LTHIRD e=expression RTHIRD
     {
+        // writeIntoAsmFile("MOV AX,"+$e.name_line+"  ;moving the array index to AX");
+        // writeIntoAsmFile("PUSH AX; pushing the array index to stack for later use");
         writeIntoParserLogFile(
         "Line "
         + $ID.getLine() + ": variable : ID LTHIRD expression RTHIRD\n" 
@@ -1547,11 +1574,68 @@ expression
 
     | v=variable 
     { 
+        newLabel();
+        String fullName = $v.name_line;
+        String actualName = fullName.contains("[") ? fullName.substring(0, fullName.indexOf("[")): fullName;
+        String asmLine="";
+        if(Main.st.lookup(actualName)!=null)
+        { 
+            
+            SymbolInfo sym = Main.st.lookup(actualName);
+            String IDtokenType = sym.getIDType();
+
+            int stck_off = sym.getStackOffset();
+            
+            if(stck_off==-1) //global array/variable
+            { 
+                if(IDtokenType.equals("array"))
+                { 
+                    
+                    writeIntoAsmFile("\tPOP AX;    popping the index from stack");
+                    writeIntoAsmFile("\tMOV BX,AX   ;moving index to base register,,LHS global cause stack_off="+stck_off);
+                    asmLine = "\tMOV " + actualName + "[BX],";
+                }
+                else
+                { 
+                    asmLine = "\tMOV "+actualName+",";
+                }
+            }
+
+            else //local array/variable
+            { 
+                if(IDtokenType.equals("array"))
+                { 
+                    
+                    writeIntoAsmFile("\tPOP AX;    popping the index from stack");
+                    int baseAddr = sym.getStackOffset();
+                    //SI = baseaddr-index*2 , then neg SI then BP+SI
+                    writeIntoAsmFile("\tSHL AX,1   ;doing index*2");
+                    writeIntoAsmFile(";base addr: "+baseAddr);
+                    writeIntoAsmFile("\tSUB AX,"+baseAddr+" ;doing index*2-baseAddr,assuming only main will have array,otherwise base calc will be diff");
+                    writeIntoAsmFile("\tMOV SI,AX   ;taking the value to SI");
+                    asmLine = "\tMOV [BP+SI],";
+                }
+                else
+                { 
+                    
+                    if(stck_off<0)
+                    { 
+                        
+                        asmLine = "\tMOV [BP+" + (-stck_off) + "],";
+                    }
+                    else
+                    { 
+                        asmLine = "\tMOV [BP-" + stck_off + "],";
+                    }
+                }
+
+            }
+        }
 
     }
     a=ASSIGNOP l=logic_expression
     {
-        newLabel();
+        
         if(!$l.name_line.equalsIgnoreCase("debug")){ 
                 writeIntoParserLogFile(
                 "Line "
@@ -1564,8 +1648,7 @@ expression
           }
         
         
-        String fullName = $v.name_line;
-        String actualName = fullName.contains("[") ? fullName.substring(0, fullName.indexOf("[")): fullName;
+
         boolean isError = false;
         if($l.type!=null){  
             if($l.type.equalsIgnoreCase("void")){
@@ -1580,57 +1663,119 @@ expression
         //     writeIntoParserLogFile("debug at line "  + $l.stop.getLine() +$v.name_line+" not found in symbol table\n");
         // }
 
-        if(Main.st.lookup(actualName)!=null && !isError){
-            SymbolInfo sym2 = Main.st.lookup($l.name_line);
-            SymbolInfo sym = Main.st.lookup(actualName);
-            String IDtokenType = sym.getIDType();
+         fullName = $l.name_line;
+         actualName = fullName.contains("[") ? fullName.substring(0, fullName.indexOf("[")): fullName;
+        SymbolInfo sym2 = Main.st.lookup(actualName);
 
-            int stck_off = sym.getStackOffset();
-            
-            if(stck_off==-1)
-            {
-                
-                if(sym2==null)
+        if(sym2==null)
+        { 
+            writeIntoAsmFile("\tPOP AX;getting assignop's RHS val fromm stack,as logical expr is pushed to stack,the log expr:"+actualName);
+            writeIntoAsmFile(asmLine+"AX");
+        }
+
+        else
+        { 
+                int stck_off2 = sym2.getStackOffset();
+                if(stck_off2==-1)
                 { 
-                    writeIntoAsmFile("\tPOP AX;getting assignop's RHS val fromm stack,as logical expr is pushed to stack");
-                }
-                else{ 
-                    int stck_off2 = sym2.getStackOffset();
-                    if(stck_off2==-1)
+                    if(sym2.getIDType().equals("array"))
                     { 
-                        writeIntoAsmFile("\tMOV AX,"+$l.name_line+";Global variable;rare");
+                        writeIntoAsmFile("\tPOP AX   ;popping global array's index from stack, for RHS");
+                        writeIntoAsmFile("\tMOV BX,AX  ;taking the index to BX reg");
+                        writeIntoAsmFile("\tMOV AX,"+sym2.getName()+"[BX]  ;moving RHS's array val to AX");
+                        writeIntoAsmFile(asmLine+"AX  ;moving AX to LHS");
                     }
                     else
                     { 
-                       if (stck_off2 < 0) {
-                            writeIntoAsmFile("\tMOV AX,[BP+" + (-stck_off2) + "];rare");
-                        } else {
-                            writeIntoAsmFile("\tMOV AX,[BP-" + stck_off2 + "];rare");
-                        }
+                        writeIntoAsmFile("\tMOV AX,"+$l.name_line+";Global variable;rare");
+                        writeIntoAsmFile(asmLine + "AX");
+                    }
+                    
+                }
+                else
+                { 
+                    if (stck_off2 < 0) 
+                    {
+                        writeIntoAsmFile("\tMOV AX,[BP+" + (-stck_off2) + "];rare,assuming no array has this");
+                        writeIntoAsmFile(asmLine + "AX");
+                    } 
+                    else 
+                    {
+                        if(sym2.getIDType().equals("array"))
+                        { 
+                            writeIntoAsmFile("\tPOP AX   ;popping local array's index from stack, for RHS");
+                            int baseAddr = stck_off2;
+                            //SI = baseaddr-index*2 , then neg SI then BP+SI
+                            writeIntoAsmFile("\tSHL AX,1   ;doing index*2");
+                            writeIntoAsmFile(";base addr of RHS local arr: "+baseAddr);
+                            writeIntoAsmFile("\tSUB AX,"+baseAddr+" ;doing index*2-baseAddr,assuming only main will have array,otherwise base calc will be diff");
+                            writeIntoAsmFile("\tMOV SI,AX   ;taking the value to SI");
+                            writeIntoAsmFile("\tMOV AX,[BP+SI]   ;moving local arrays value to AX");
+                            writeIntoAsmFile(asmLine+"AX   ;moving AX to LHS");
 
+                        }
+                        else
+                        { 
+                            writeIntoAsmFile("\tMOV AX,[BP-" + stck_off2 + "];rare");
+                            writeIntoAsmFile(asmLine + "AX");
+                        }
+                        
                     }
                 }
-                
-                // writeIntoAsmFile("\tPUSH AX");
-                // stack_offset+=2;
-                
-                //writeIntoAsmFile("\tMOV AX,"+$l.name_line);
-                writeIntoAsmFile("\tMOV "+actualName+",AX;LHS is global variable");
             }
-            else 
-            {
-                if(sym2==null)
-                { 
-                    writeIntoAsmFile("\tPOP AX;getting assignop's RHS val fromm stack,as logical expr is pushed to stack");
-                }                
-               if (stck_off < 0) {
-                    writeIntoAsmFile("\tMOV [BP+" + (-stck_off) + "],AX ; LHS is local variable");
-                } else {
-                    writeIntoAsmFile("\tMOV [BP-" + stck_off + "],AX ; LHS is local variable");
-                }
 
-            }
+            
+        
+        if(Main.st.lookup(actualName)!=null && !isError){
+                   
+            // if(stck_off==-1)
+            // {
+                
+                
+                
+            //     // writeIntoAsmFile("\tPUSH AX");
+            //     // stack_offset+=2;
+                
+            //     //writeIntoAsmFile("\tMOV AX,"+$l.name_line);
+                
+            // }
+            // else 
+            // {
+            //     if(sym2==null)
+            //     { 
+            //         writeIntoAsmFile("\tPOP AX;getting assignop's RHS val fromm stack,as logical expr is pushed to stack");
+            //     }                
+            //    if (stck_off < 0) {
+            //         if(sym.getIDType().equals("array"))
+            //         { 
+            //             writeIntoAsmFile("\tMOV [BP+" + (-stck_off) + "],AX ; LHS is local variable");
+            //         }
+            //         else
+            //         { 
+            //             writeIntoAsmFile("\tMOV [BP+" + (-stck_off) + "],AX ; LHS is local variable");
+            //         }
+                    
+            //     } else {
+            //         if(sym.getIDType().equals("array"))
+            //         { 
+            //             int indx = -stck_off;
+            //             writeIntoAsmFile("\tMOV BX,AX ;moving RHS val to BX");
+            //             writeIntoAsmFile("\tPOP AX ;popping index for array use");
+            //             writeIntoAsmFile("\tADD AX,"+indx+" ;doing index-stack_off");
+            //             writeIntoAsmFile("\tMOV SI,AX ;SI gets effective addr");
+            //             writeIntoAsmFile("\tMOV [BP+ SI],BX ; LHS is local variable");
+            //         }
+            //         else
+            //         {
+            //             writeIntoAsmFile("\tMOV [BP-" + stck_off + "],AX ; LHS is local variable");
+            //         }
+                    
+            //     }
+
+            // }
             //writeIntoParserLogFile("debug at line "  + $l.stop.getLine() +IDtokenType+"\n");
+            SymbolInfo sym = Main.st.lookup(actualName);
+            String IDtokenType = sym.getIDType();
             if(!IDtokenType.equalsIgnoreCase(normalizeType($l.type)) && !IDtokenType.equalsIgnoreCase("array") && $l.type!=null){
                 if(!(IDtokenType.equalsIgnoreCase("float") && normalizeType($l.type).equalsIgnoreCase("int"))){
                     Main.syntaxErrorCount++;
@@ -2316,10 +2461,14 @@ unary_expression
         if(sym==null)
         { 
             //some constant
-            writeIntoAsmFile("\tPOP AX;popping from stack which was pushed before");
+            writeIntoAsmFile("\tPOP AX;popping from stack which was pushed before in unary, to negate it and push, have to be sure about it later");
             stack_offset-=2;
-            // writeIntoAsmFile("\tPUSH AX");
-            // stack_offset+=2;
+            if($ADDOP.getText().equals("-"))
+            { 
+                writeIntoAsmFile("\tNEG AX");
+            }
+            writeIntoAsmFile("\tPUSH AX");
+            stack_offset+=2;
         }
         else {
             int offset = sym.getStackOffset();
@@ -2589,8 +2738,8 @@ factor
     | CONST_INT
     {
         newLabel();
-        writeIntoAsmFile("\tMOV AX,"+$CONST_INT.getText());
-        writeIntoAsmFile("\tPUSH AX");
+        writeIntoAsmFile("\tMOV AX,"+$CONST_INT.getText()+"  ;getting this int into AX");
+        writeIntoAsmFile("\tPUSH AX    ;pushing const_int for later use");
         stack_offset += 2;
         writeIntoParserLogFile(
         "Line "

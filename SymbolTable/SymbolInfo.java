@@ -14,6 +14,7 @@ public class SymbolInfo{
         public ArrayList<String> paramList;
         public String arrayType;
         private int stack_offset;
+        private String arrSize;
 
     
         public SymbolInfo(String name, String type,String print ){
@@ -43,6 +44,15 @@ public class SymbolInfo{
         }
         public SymbolInfo(String name, String type) {
             this(name, type, "");
+        }
+
+        public void setSize(String s)
+        {
+            this.arrSize = s;
+        }
+        public String getSize()
+        {
+            return this.arrSize;
         }
 
         public int getStackOffset()

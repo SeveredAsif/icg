@@ -34,7 +34,13 @@ JUL 10 2025
 4. 4:36 pm - 6:22 pm - stack read, problem is assignop (logical doesnt get printed first)
 5. 6:28 pm - 6:49 - have to fix if else -- understood
 6. 6:55 pm - 7:57 pm - if else fixed
-7. 9:15 pm - 10:01 pm - fixed pop push issue in while and rel_op - input7 and 6 works perfect
+7. 9:15 pm - 10:01 pm - fixed pop push issue in while and rel_op - input7 and 5 works perfect
+8. 1:12 am - 2:30 am - array things check. terrified, might have to change push pops in unary, const_int, they dont match here 
+
+19 JUL 2025
+1. 9:50 am - 10:39 am - writing the assignop 
+2. 10:48 am - 11:47 am - local array works, index calculation issue 
+3. 12:03 pm - 
 
    | WHILE 
     { 

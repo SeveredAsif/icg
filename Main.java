@@ -30,6 +30,17 @@ public class Main {
         pendingInsertions.add(sym);
         System.out.println("ID name: "+sym.getName()+" ID Type: "+sym.getIDType());
     }
+
+    public static void addToPending(String name,String IDType,String size){
+        String print = "< " + name + " : " + "ID" + " >";
+        SymbolInfo sym = new SymbolInfo(name, "ID",print,IDType);
+        sym.setSize(size);
+        //sym.setPrintingLine();
+        //sym.IDtype = IDType;
+        //sym.setIDType(IDType);
+        pendingInsertions.add(sym);
+        System.out.println("ID name: "+sym.getName()+" ID Type: "+sym.getIDType());
+    }
     public static void addToPending(String name){
         SymbolInfo sym = new SymbolInfo(name, "ID");
         sym.setPrintingLine("< " + name + " : " + "ID" + " >");
@@ -71,6 +82,21 @@ public class Main {
                         }
                         item.arrayType=type;
                     }
+                    prev_stack_off += Integer.parseInt(item.getSize())*2;
+                    if(prev_stack_off>stck_off)
+                    {
+                        System.out.println("array ERRORRR! stack offset in main> stack offset in parser");
+                        item.setStackOffset(-1);
+                        System.out.println("array Main stack offset: "+prev_stack_off+", parser stack offset: "+stck_off+",id name: "+item.getName()+" stack off for it: "+item.getStackOffset());
+                        prev_stack_off -= Integer.parseInt(item.getSize())*2;
+                        System.out.println("array Main stack offset restored to "+prev_stack_off);
+                    }
+                    else 
+                    {
+                        item.setStackOffset(prev_stack_off);
+                        System.out.println("Main stack offset: "+prev_stack_off+", parser stack offset: "+stck_off+",id name: "+item.getName());
+                    }
+        
                 }
                 else
                 {
