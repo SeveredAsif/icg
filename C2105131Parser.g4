@@ -1579,7 +1579,8 @@ expression
                 if(IDtokenType.equals("array"))
                 { 
                     
-                    writeIntoAsmFile("\tPOP AX;    popping the index from stack");
+                    //writeIntoAsmFile("\tPOP AX;    popping the index from stack");
+                    writeIntoAsmFile("\t;    AX has the index from already");
                     writeIntoAsmFile("\tMOV BX,AX   ;moving index to base register,,LHS global cause stack_off="+stck_off);
                     asmLine = "\tMOV " + actualName + "[BX],";
                 }
@@ -1594,7 +1595,8 @@ expression
                 if(IDtokenType.equals("array"))
                 { 
                     
-                    writeIntoAsmFile("\tPOP AX;    popping the index from stack");
+                    //writeIntoAsmFile("\tPOP AX;    popping the index from stack");
+                    writeIntoAsmFile("\t;    the index  is already in AX");
                     int baseAddr = sym.getStackOffset();
                     //SI = baseaddr-index*2 , then neg SI then BP+SI
                     writeIntoAsmFile("\tSHL AX,1   ;doing index*2");
@@ -1677,7 +1679,8 @@ expression
                         }
                         else
                         { 
-                       writeIntoAsmFile("\tPOP AX   ;popping global array's index from stack, for RHS");
+                       //writeIntoAsmFile("\tPOP AX   ;popping global array's index from stack, for RHS");
+                       writeIntoAsmFile("\t;doing nothing ,AX already has global array index");
                         writeIntoAsmFile("\tMOV BX,AX  ;taking the index to BX reg");
                         writeIntoAsmFile("\tMOV AX,"+sym2.getName()+"[BX]  ;moving RHS's array val to AX");
                         writeIntoAsmFile(asmLine+"AX  ;moving AX to LHS");
@@ -1703,7 +1706,8 @@ expression
                     {
                         if(sym2.getIDType().equals("array"))
                         { 
-                            writeIntoAsmFile("\tPOP AX   ;popping local array's index from stack, for RHS");
+                            //writeIntoAsmFile("\tPOP AX   ;popping local array's index from stack, for RHS");
+                            writeIntoAsmFile("\t;doing nothing ,AX already has local array index,for RHS");
                             writeIntoAsmFile("\tMOV CX,AX  ;storing the array's index for others to use");
                             int baseAddr = stck_off2;
                             //SI = baseaddr-index*2 , then neg SI then BP+SI
@@ -1713,7 +1717,8 @@ expression
                             writeIntoAsmFile("\tMOV SI,AX   ;taking the value to SI");
                             writeIntoAsmFile("\tMOV AX,[BP+SI]   ;moving local arrays value to AX");
                             writeIntoAsmFile(asmLine+"AX   ;moving AX to LHS");
-                            writeIntoAsmFile("\tPUSH CX  ;pushing the array index back to stack");
+                            //writeIntoAsmFile("\tPUSH CX  ;pushing the array index back to stack");
+                            writeIntoAsmFile("\tMOV AX,CX  ;getting the array index back to AX");
 
                         }
                         else
@@ -2510,14 +2515,14 @@ unary_expression
         if(sym==null)
         { 
             //some constant
-            writeIntoAsmFile("\tPOP AX;popping from stack which was pushed before in unary, to negate it and push, have to be sure about it later");
-            stack_offset-=2;
+            //writeIntoAsmFile("\tPOP AX;popping from stack which was pushed before in unary, to negate it and push, have to be sure about it later");
+            //stack_offset-=2;
             if($ADDOP.getText().equals("-"))
             { 
-                writeIntoAsmFile("\tNEG AX");
+                writeIntoAsmFile("\tNEG AX  ;negating, unary op has - in it");
             }
-            writeIntoAsmFile("\tPUSH AX");
-            stack_offset+=2;
+            //writeIntoAsmFile("\tPUSH AX");
+            //stack_offset+=2;
         }
         else {
             int offset = sym.getStackOffset();
