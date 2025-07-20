@@ -1861,10 +1861,13 @@ logic_expression
             } 
         } 
         
-        writeIntoAsmFile("\t MOV DX,AX");
+        writeIntoAsmFile("\t MOV DX,AX ;LHS result");
+        writeIntoAsmFile("\tPUSH DX; pushing DX for later use");
     }
     LOGICOP re=rel_expression
     {
+       newLabel();
+       writeIntoAsmFile("\tPOP DX; popping DX for later use");
        sym = Main.st.lookup($re.name_line);
         if(sym==null)
         { 
@@ -1904,7 +1907,7 @@ logic_expression
             //curr L9
             //if DX true, jump to L10 - this level sets AX=1 
             int next = label+1;
-            writeIntoAsmFile("\tCMP DX,1");
+            writeIntoAsmFile("\tCMP DX,1  ;AX has the result" );
             writeIntoAsmFile("\tJE L"+next);
             //if AX true, jump to L10 - this level sets AX=1 
             writeIntoAsmFile("\tCMP AX,1");
@@ -1958,6 +1961,7 @@ logic_expression
         + $re.stop.getLine() + ": logic_expression : rel_expression LOGICOP rel_expression\n\n" + $r.name_line+ "" + $LOGICOP.getText() + "" + $re.name_line +"\n"
     );          
         $name_line=$r.name_line+ "" + $LOGICOP.getText() + "" + $re.name_line;
+        
     }
     ;
 
@@ -2094,6 +2098,7 @@ rel_expression
             newLabel();
             //AX=1
             writeIntoAsmFile("\tMOV AX,1");
+            //writeIntoAsmFile("\tJMP L"+endl+" ;got AX=1,so jumping to");
             //writeIntoAsmFile("\tPUSH AX");
             //jump to L12
             next = label+2;
@@ -2173,7 +2178,6 @@ rel_expression
             // writeIntoAsmFile("\tPUSH AX");
             // stack_offset+=2;
         }
-
 
         writeIntoParserLogFile(
         "Line "
