@@ -416,20 +416,14 @@ func_definition
             + $c.stop.getLine() + ": func_definition : type_specifier ID LPAREN parameter_list RPAREN compound_statement\n\n" +$t.text + " "+ $ID.getText() + "("+$p.name_line+ ")"+ $c.name_line + "\n"
         );          
         $name_line = $t.text + " "+ $ID.getText() + "("+$p.name_line+ ")"+ $c.name_line;
-        //Main.st.insert($ID.getText(),"ID");
 
-        
-        // for(int i=0;i<stack_offset;i++)
-        // { 
-        //     writeIntoAsmFile("\tPOPPINGG AX");
-        // }
                
         int endfL = global_func_end_label.pop();
         writeIntoAsmFile("\tL"+endfL+":   ;function starts end process here");
         int extra = stack_offset - sub*2  -2; //is there anything except bp and local variable
         while(sub>0)
         { 
-            writeIntoAsmFile("\tADD SP,2");
+            writeIntoAsmFile("\tADD SP,2   ; Line:"+$c.stop.getLine());
             sub -= 2;
         }
         // while(extra>0)
@@ -437,9 +431,9 @@ func_definition
         //     writeIntoAsmFile("\tADD SP,2");
         //     extra -= 2;            
         // }
-        writeIntoAsmFile("\tPOP BP");
+        writeIntoAsmFile("\tPOP BP   ;Line:"+$c.stop.getLine());
         
-        writeIntoAsmFile("\tRET "+(paramSize)*2);
+        writeIntoAsmFile("\tRET "+(paramSize)*2+" ;Line: "+$c.stop.getLine());
         stack_offset = prev_offset;
         Main.prev_stack_off = prev_main_offset;
         sub = prev_sub;
@@ -557,7 +551,7 @@ func_definition
 
         while(sub>0)
         { 
-            writeIntoAsmFile("\tADD SP,2");
+            writeIntoAsmFile("\tADD SP,2   ;Line:" + $c.stop.getLine() );
             sub -= 2;
         }
         if($ID.getText().equalsIgnoreCase("main")){ 
@@ -832,12 +826,12 @@ var_declaration
                 
                 if (item.getIDType().equals("array")) { 
                     int size = Integer.parseInt(item.getSize()) * 2;
-                    writeIntoAsmFile("\tSUB SP," + size);
+                    writeIntoAsmFile("\tSUB SP," + size + "  ;Line:"+$sm.getLine());
                     stack_offset += size*2;
                 }
                 else
                 { 
-                    writeIntoAsmFile("\tSUB SP,2");
+                    writeIntoAsmFile("\tSUB SP,2  ;Line:"+$sm.getLine());
                     stack_offset += 2;
                 }
                //writeIntoAsmFile("item for sub: "+item.getName());
@@ -1108,7 +1102,7 @@ statement returns [String name_line,boolean retuurn,int lbl]
 
     | FOR 
     { 
-        writeIntoAsmFile("\tPUSH AX   ; if AX has necessary value,i am storing it");
+        writeIntoAsmFile("\tPUSH AX   ; if AX has necessary value,i am storing it,Line:"+$FOR.getLine());
     }
     LPAREN e1=expression_statement 
     { 
@@ -1133,8 +1127,8 @@ statement returns [String name_line,boolean retuurn,int lbl]
         int increase = label;
 
         //will jump to true, as we didnt jump to false
-        writeIntoAsmFile("\tJMP L"+trueL+"       ;will jump to true, as we didnt jump to false");
-        writeIntoAsmFile("L"+increase+":       ;after this label, loop will go to increase i");
+        writeIntoAsmFile("\tJMP L"+trueL+"       ;will jump to true, as we didnt jump to false ,Line: "+$e2.stop.getLine());
+        writeIntoAsmFile("L"+increase+":       ");
 
         
         //writeIntoAsmFile("\tJMP L"+endL+"  ;jumping to end of loop,works if for doent print other labels");
@@ -1143,8 +1137,8 @@ statement returns [String name_line,boolean retuurn,int lbl]
     { 
         
         writeIntoAsmFile(";after inc ");
-        writeIntoAsmFile("JMP L"+forlabel);    
-        writeIntoAsmFile("L"+trueL+":    ;this is the true label,after this, main loop execution");
+        writeIntoAsmFile("JMP L"+forlabel+" ;Line:"+$e3.stop.getLine());    
+        writeIntoAsmFile("L"+trueL+":    ");
 
     }
     s=statement
@@ -1164,10 +1158,10 @@ statement returns [String name_line,boolean retuurn,int lbl]
         // stack.push("L"+label);
         // writeIntoAsmFile(";for end label"); 
 
-        writeIntoAsmFile("\tJMP L"+increase+" ;jumping to increase label");
+        writeIntoAsmFile("\tJMP L"+increase+" ;jumping to increase label,Line:"+$s.stop.getLine());
         writeIntoAsmFile("\tL"+endL+":  ;for end label");    
 
-        writeIntoAsmFile("\tPOP AX   ; if AX had necessary value,i am popping it from stack");
+        writeIntoAsmFile("\tPOP AX   ; if AX had necessary value,i am popping it from stack,Line:"+$s.stop.getLine());
     }
 
 
@@ -1192,8 +1186,8 @@ statement returns [String name_line,boolean retuurn,int lbl]
         int ifTrueL = label;
         label++;
         int endL = label;
-        writeIntoAsmFile("\tJMP L"+endL); //jmp to label 8, curr label = 6, next label 7=statement's label -- correction: this needs to jump to else
-        writeIntoAsmFile("L"+ifTrueL+":   ;if true here"); //true will jump here
+        writeIntoAsmFile("\tJMP L"+endL+" ;Line:"+ $RPAREN.getLine()); //jmp to label 8, curr label = 6, next label 7=statement's label -- correction: this needs to jump to else
+        writeIntoAsmFile("L"+ifTrueL+":   "); //true will jump here
 
     }
     s=statement
@@ -1208,7 +1202,7 @@ statement returns [String name_line,boolean retuurn,int lbl]
         );
         $name_line = "if(" + $e.name_line + ")" + $s.name_line;
         $retuurn=false;
-        writeIntoAsmFile("L"+endL+":   ;if ended here");
+        writeIntoAsmFile("L"+endL+":   ");
         
     }
     | IF LPAREN e=expression RPAREN 
@@ -1226,16 +1220,16 @@ statement returns [String name_line,boolean retuurn,int lbl]
             endIf = if_else.peek();
         }
         
-        writeIntoAsmFile("\tJMP L"+elseL+" ;jumping to else if,as condn is false");
+        writeIntoAsmFile("\tJMP L"+elseL+" ;jumping to else if,as condn is false,Line:"+$RPAREN.getLine());
         //this section is under not equals of expression region. so it should jump to label+2 (label+1 is for equals) 
         //writeIntoAsmFile("\tCMP AX,0"); //if false, jump to next label
-        writeIntoAsmFile("L"+trueL+":   ;if true here"); //true will jump here //jmp to label 8, curr label = 6, next label 7=statement's label        
+        writeIntoAsmFile("L"+trueL+":  "); //true will jump here //jmp to label 8, curr label = 6, next label 7=statement's label        
     }
     s1=statement 
     { 
         label++;
-        writeIntoAsmFile("\tJMP L"+endIf+" ;jumping to end,as one condn is satisfied");
-        writeIntoAsmFile("L"+elseL+":   ;if false here");
+        writeIntoAsmFile("\tJMP L"+endIf+" ;jumping to end,as one condn is satisfied,Line"+$s1.stop.getLine());
+        writeIntoAsmFile("L"+elseL+":   ");
     }
     ELSE s2=statement
     {
@@ -1250,7 +1244,7 @@ statement returns [String name_line,boolean retuurn,int lbl]
         writeIntoAsmFile(";End of if else");
         if(!if_else.empty())
         { 
-            writeIntoAsmFile("L"+if_else.peek()+":   ;if ended here"); 
+            writeIntoAsmFile("L"+if_else.peek()+":   "); 
             if_else.pop();
         }
         
@@ -1290,13 +1284,13 @@ statement returns [String name_line,boolean retuurn,int lbl]
         writeIntoAsmFile(";found the place after AX,0");
         label++;
         int stmt_label = label;
-        writeIntoAsmFile("L"+stmt_label+":  ;will jump here from compare,if true");
+        writeIntoAsmFile("L"+stmt_label+":  ");
         label++;
         int endL = label;
         writeIntoAsmFile("\t  ;AX has the necessary values");
 
         writeIntoAsmFile("CMP AX,0");
-        writeIntoAsmFile("\tJE L" + endL + " ; will jump to end if AX=0");
+        writeIntoAsmFile("\tJE L" + endL + " ; will jump to end if AX=0, Line"+$e.stop.getLine());
 
     }
     RPAREN s=statement
@@ -1309,8 +1303,8 @@ statement returns [String name_line,boolean retuurn,int lbl]
         $retuurn=false;
         
         
-        writeIntoAsmFile("\tJMP L"+whileLabel+";whilelabel jump");
-        writeIntoAsmFile("L"+endL+":  ;will jump here ,if ends");
+        writeIntoAsmFile("\tJMP L"+whileLabel+";whilelabel jump,Line:"+$s.stop.getLine());
+        writeIntoAsmFile("L"+endL+":  ");
 
     }
  
@@ -1362,20 +1356,20 @@ statement returns [String name_line,boolean retuurn,int lbl]
             int offset = sym.getStackOffset();
             if(offset==-1)
             {
-                writeIntoAsmFile("\tMOV AX,"+$e.name_line+" ;setting ret val from global");
+                writeIntoAsmFile("\tMOV AX,"+$e.name_line+" ;setting ret val from global,Line: "+$SEMICOLON.getLine());
             }
             else{
                 
                 //writeIntoAsmFile("\tMOV AX,[BP-"+offset+"]");
                 if (offset < 0) {
-                    writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "] ;  setting ret val from local");
+                    writeIntoAsmFile("\tMOV AX,[BP+" + (-offset) + "] ;  setting ret val from local,Line:"+$SEMICOLON.getLine());
                 } else {
-                    writeIntoAsmFile("\tMOV AX,[BP-" + offset + "] ;  setting ret val from local");
+                    writeIntoAsmFile("\tMOV AX,[BP-" + offset + "] ;  setting ret val from local,Line:"+$SEMICOLON.getLine());
                 }
             } 
         }
 
-        writeIntoAsmFile("\tJMP L"+global_func_end_label.peek()+" ;JUMPING to end of function");
+        writeIntoAsmFile("\tJMP L"+global_func_end_label.peek()+" ;JUMPING to end of function,Line:"+$SEMICOLON.getLine());
     }
     ;
 
@@ -1581,7 +1575,7 @@ expression
                     
                     //writeIntoAsmFile("\tPOP AX;    popping the index from stack");
                     writeIntoAsmFile("\t;    AX has the index from already");
-                    writeIntoAsmFile("\tMOV BX,AX   ;moving index to base register,,LHS global cause stack_off="+stck_off);
+                    writeIntoAsmFile("\tMOV BX,AX   ;moving index to base register,,LHS global cause stack_off="+stck_off+" ,Line:"+$v.stop.getLine());
                     asmLine = "\tMOV " + actualName + "[BX],";
                 }
                 else
@@ -1599,10 +1593,10 @@ expression
                     writeIntoAsmFile("\t;    the index  is already in AX");
                     int baseAddr = sym.getStackOffset();
                     //SI = baseaddr-index*2 , then neg SI then BP+SI
-                    writeIntoAsmFile("\tSHL AX,1   ;doing index*2");
+                    writeIntoAsmFile("\tSHL AX,1   ;doing index*2,Line: "+$v.stop.getLine());
                     writeIntoAsmFile(";base addr: "+baseAddr);
-                    writeIntoAsmFile("\tSUB AX,"+baseAddr+" ;doing index*2-baseAddr,assuming only main will have array,otherwise base calc will be diff");
-                    writeIntoAsmFile("\tMOV SI,AX   ;taking the value to SI");
+                    writeIntoAsmFile("\tSUB AX,"+baseAddr+" ;doing index*2-baseAddr,assuming only main will have array,otherwise base calc will be diff,Line:"+$v.stop.getLine());
+                    writeIntoAsmFile("\tMOV SI,AX   ;taking the value to SI,Line:"+$v.stop.getLine());
                     asmLine = "\tMOV [BP+SI],";
                 }
                 else
@@ -1661,7 +1655,7 @@ expression
         if(sym2==null )
         { 
             writeIntoAsmFile("\t;hopefully AX has the value,the log expr:"+fullName);
-            writeIntoAsmFile(asmLine+"AX");
+            writeIntoAsmFile(asmLine+"AX   ;Line:"+$l.stop.getLine());
         }
 
         else
@@ -1675,23 +1669,23 @@ expression
                         if(fullName.contains("++") || fullName.contains("--"))
                         { 
                             writeIntoAsmFile("\t;doing nothing ,AX already has answer");
-                            writeIntoAsmFile(asmLine+"AX  ;moving AX to LHS");
+                            writeIntoAsmFile(asmLine+"AX  ;moving AX to LHS,Line:"+$l.stop.getLine());
                         }
                         else
                         { 
                        //writeIntoAsmFile("\tPOP AX   ;popping global array's index from stack, for RHS");
                        writeIntoAsmFile("\t;doing nothing ,AX already has global array index");
-                        writeIntoAsmFile("\tMOV BX,AX  ;taking the index to BX reg");
-                        writeIntoAsmFile("\tMOV AX,"+sym2.getName()+"[BX]  ;moving RHS's array val to AX");
-                        writeIntoAsmFile(asmLine+"AX  ;moving AX to LHS");
+                        writeIntoAsmFile("\tMOV BX,AX  ;taking the index to BX reg,Line:"+$l.stop.getLine());
+                        writeIntoAsmFile("\tMOV AX,"+sym2.getName()+"[BX]  ;moving RHS's array val to AX,Line:"+$l.stop.getLine());
+                        writeIntoAsmFile(asmLine+"AX  ;moving AX to LHS,Line:"+$l.stop.getLine());
                         //writeIntoAsmFile("\tPUSH BX   ;pushing BX,the global array index for using in assignop");
                         }
  
                     }
                     else
                     { 
-                        writeIntoAsmFile("\tMOV AX,"+$l.name_line+";Global variable;rare");
-                        writeIntoAsmFile(asmLine + "AX");
+                        writeIntoAsmFile("\tMOV AX,"+$l.name_line+";Global variable;rare,Line:"+$l.stop.getLine());
+                        writeIntoAsmFile(asmLine + "AX,Line:"+$l.stop.getLine());
                     }
                     
                 }
@@ -1699,32 +1693,32 @@ expression
                 { 
                     if (stck_off2 < 0) 
                     {
-                        writeIntoAsmFile("\tMOV AX,[BP+" + (-stck_off2) + "];rare,assuming no array has this");
-                        writeIntoAsmFile(asmLine + "AX");
+                        writeIntoAsmFile("\tMOV AX,[BP+" + (-stck_off2) + "];rare,assuming no array has this,Line:"+$l.stop.getLine());
+                        writeIntoAsmFile(asmLine + "AX   ;Line:"+$l.stop.getLine());
                     } 
                     else 
                     {
                         if(sym2.getIDType().equals("array"))
                         { 
                             //writeIntoAsmFile("\tPOP AX   ;popping local array's index from stack, for RHS");
-                            writeIntoAsmFile("\t;doing nothing ,AX already has local array index,for RHS");
-                            writeIntoAsmFile("\tMOV CX,AX  ;storing the array's index for others to use");
+                            writeIntoAsmFile("\t;doing nothing ,AX already has local array index,for RHS,Line:"+$l.stop.getLine());
+                            writeIntoAsmFile("\tMOV CX,AX  ;storing the array's index for others to use,Line:"+$l.stop.getLine());
                             int baseAddr = stck_off2;
                             //SI = baseaddr-index*2 , then neg SI then BP+SI
-                            writeIntoAsmFile("\tSHL AX,1   ;doing index*2");
-                            writeIntoAsmFile(";base addr of RHS local arr: "+baseAddr);
-                            writeIntoAsmFile("\tSUB AX,"+baseAddr+" ;doing index*2-baseAddr,assuming only main will have array,otherwise base calc will be diff");
-                            writeIntoAsmFile("\tMOV SI,AX   ;taking the value to SI");
-                            writeIntoAsmFile("\tMOV AX,[BP+SI]   ;moving local arrays value to AX");
-                            writeIntoAsmFile(asmLine+"AX   ;moving AX to LHS");
-                            //writeIntoAsmFile("\tPUSH CX  ;pushing the array index back to stack");
-                            writeIntoAsmFile("\tMOV AX,CX  ;getting the array index back to AX");
+                            writeIntoAsmFile("\tSHL AX,1   ;doing index*2,Line:"+$l.stop.getLine());
+                            writeIntoAsmFile(";base addr of RHS local arr: "+baseAddr +",Line:"+$l.stop.getLine());
+                            writeIntoAsmFile("\tSUB AX,"+baseAddr+" ;doing index*2-baseAddr,assuming only main will have array,otherwise base calc will be diff,Line:"+$l.stop.getLine());
+                            writeIntoAsmFile("\tMOV SI,AX   ;taking the value to SI,Line: "+$l.stop.getLine());
+                            writeIntoAsmFile("\tMOV AX,[BP+SI]   ;moving local arrays value to AX,Line: "+$l.stop.getLine());
+                            writeIntoAsmFile(asmLine+"AX   ;moving AX to LHS,Line:"+$l.stop.getLine());
+                            //writeIntoAsmFile("\tPUSH CX  ;pushing the array index back to stack,Line:"+$l.stop.getLine());
+                            writeIntoAsmFile("\tMOV AX,CX  ;getting the array index back to AX,Line:"+$l.stop.getLine());
 
                         }
                         else
                         { 
-                            writeIntoAsmFile("\tMOV AX,[BP-" + stck_off2 + "];rare");
-                            writeIntoAsmFile(asmLine + "AX");
+                            writeIntoAsmFile("\tMOV AX,[BP-" + stck_off2 + "];rare,Line:"+$l.stop.getLine());
+                            writeIntoAsmFile(asmLine + "AX  ;Line:"+$l.stop.getLine());
                         }
                         
                     }

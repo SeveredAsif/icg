@@ -150,7 +150,7 @@ public class Main {
         String parserLogFileName = outputDirectory + "log.txt";
         String errorFileName = outputDirectory + "error.txt";
         String lexLogFileName = outputDirectory + "lexerLog.txt";
-        String asmFileName = outputDirectory + "output.asm";
+        String asmFileName = outputDirectory + "code.asm";
 
 
         pendingInsertions = new ArrayList<>();
